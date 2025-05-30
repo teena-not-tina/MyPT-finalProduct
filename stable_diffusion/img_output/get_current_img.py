@@ -34,7 +34,7 @@ CHARACTER_TAG_MAPPING = {
     1: "very fat",
     2: "fat", 
     3: "a little fat",
-    4: "normal",
+    4: "average",
     5: "slightly muscular",
     6: "muscular",
     7: "very muscular"
