@@ -194,7 +194,7 @@ async def update_user_character(user_id: str, new_character: int):
     return {"message": "User character updated", "user_id": user_id, "new_character": new_character}
 
 @router.put("/update-user-level/{user_id}")
-async def update_user_level(user_id: str, new_level: int):
+async def update_user_level(user_id: str, new_progress: int):
     """사용자 level 수동 업데이트"""
     # URL 디코딩 추가
     decoded_user_id = unquote(user_id)
@@ -204,7 +204,7 @@ async def update_user_level(user_id: str, new_level: int):
         {"user_id": decoded_user_id},
         {
             "$set": {
-                "progress": new_level,
+                "progress": new_progress,
                 "updated_at": datetime.now()
             }
         }
@@ -213,7 +213,7 @@ async def update_user_level(user_id: str, new_level: int):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User stats not found")
     
-    return {"message": "User progress updated", "user_id": user_id, "new_progress": new_level}
+    return {"message": "User progress updated", "user_id": user_id, "new_progress": new_progress}
 
 # 수동으로 주간 업데이트 실행하는 엔드포인트 (테스트용)
 @router.get("/trigger-weekly-update")

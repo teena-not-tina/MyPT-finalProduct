@@ -382,7 +382,6 @@ function LoginPage() {
           <div className="mx-auto h-20 w-20 bg-white rounded-full flex items-center justify-center shadow-lg mb-4">
             <LogIn className="h-10 w-10 text-purple-600" />
           </div>
-          <h2 className="text-3xl font-bold text-white mb-2">AI 이미지 생성</h2>
           <p className="text-purple-100">계정에 로그인하여 시작하세요</p>
         </div>
 
@@ -482,12 +481,6 @@ function LoginPage() {
           </div>
         </div>
 
-        {/* 푸터 */}
-        <div className="text-center">
-          <p className="text-purple-100 text-sm">
-            AI 기술로 당신만의 특별한 이미지를 만들어보세요
-          </p>
-        </div>
       </div>
     </div>
   );

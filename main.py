@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from models import MsgPayload
 from fastapi.middleware.cors import CORSMiddleware
 from stable_diffusion import contact_comfyui, character_update
-from stable_diffusion.img_output import get_current_img, login_find_img
+from stable_diffusion.img_output import get_current_img
 
 
 app = FastAPI()
@@ -20,7 +20,6 @@ app.add_middleware(
 app.include_router(contact_comfyui.router, prefix="")
 app.include_router(character_update.router, prefix="")
 app.include_router(get_current_img.router, prefix="")
-app.include_router(login_find_img.router, prefix="")
 
 
 @app.get("/")

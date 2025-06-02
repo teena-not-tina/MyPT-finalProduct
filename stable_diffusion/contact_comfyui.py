@@ -516,38 +516,6 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-#------------------------------------------------------------------------------------------------------------
-# 나중에 user_id를 이용하여 user_stats의 character의 값을 가져와서 그 기반으로 캐릭터를 결정하는 로직으로 변경할 예정
-#------------------------------------------------------------------------------------------------------------
-# @router.get("/api/user/dashboard")
-# async def get_user_dashboard(user_id: str = Depends(verify_token)):
-#     """사용자 대시보드 데이터 조회"""
-#     try:
-#         # user_results 컬렉션에서 해당 user_id의 'average' 태그 이미지 찾기
-#         average_image = await collection.find_one({
-#             "user_id": user_id,
-#             "tag": "average"
-#         })
-        
-#         if average_image:
-#             # 이미지가 있으면 base64로 인코딩해서 반환
-#             image_b64 = base64.b64encode(average_image["image_data"]).decode()
-#             return {
-#                 "has_image": True,
-#                 "image_data": image_b64,
-#                 "content_type": average_image.get("content_type", "image/png"),
-#                 "created_at": average_image.get("created_at")
-#             }
-#         else:
-#             # 이미지가 없으면 생성 버튼 표시용 응답
-#             return {
-#                 "has_image": False,
-#                 "message": "아직 생성된 이미지가 없습니다."
-#             }
-            
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
 @router.get("/api/user/profile")
 async def get_user_profile(user_id: str = Depends(verify_token)):
     """사용자 프로필 정보 조회"""
@@ -571,39 +539,10 @@ async def get_user_profile(user_id: str = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     
-# # 5. 생성 상태 확인 엔드포인트 추가
-# @router.get("/api/generation-status/{generation_id}")
-# async def get_generation_status(generation_id: str, user_id: str = Depends(verify_token)):
-#     """이미지 생성 상태 확인"""
-#     # 실제로는 Redis나 다른 캐시에 저장된 상태를 확인
-#     # 여기서는 간단히 MongoDB에서 확인
-#     try:
-#         recent_images = await collection.find({
-#             "user_id": user_id
-#         }).sort("created_at", -1).limit(7).to_list(length=7)
-        
-#         if len(recent_images) >= 7:
-#             return {
-#                 "status": "completed",
-#                 "message": "Image generation completed",
-#                 "image_count": len(recent_images)
-#             }
-#         else:
-#             return {
-#                 "status": "processing",
-#                 "message": f"Generated {len(recent_images)}/7 images",
-#                 "image_count": len(recent_images)
-#             }
-#     except Exception as e:
-#         return {
-#             "status": "error",
-#             "message": str(e)
-#         }
-
-# 로그인 엔드포인트 (예시)
+# 로그인 엔드포인트 (임시)
 @router.post("/api/auth/login")
 async def login(login_data: dict):
-    """로그인 처리 (예시)"""
+    """로그인 처리 (임시)"""
     # 실제로는 사용자 인증 로직이 들어가야 함
     user_id = login_data.get("user_id")
     password = login_data.get("password")
@@ -624,21 +563,6 @@ async def login(login_data: dict):
     else:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-
-@router.get("/get-user-results/{user_id}")
-async def get_user_results(user_id: str):
-    """사용자의 생성 결과 조회"""
-    cursor = collection.find({"user_id": user_id}).sort("created_at", -1)
-    results = await cursor.to_list(length=100)
-    
-    # ObjectId를 문자열로 변환하고 image_data는 base64로 인코딩
-    for result in results:
-        result["_id"] = str(result["_id"])
-        if "image_data" in result:
-            result["image_data"] = base64.b64encode(result["image_data"]).decode()
-    
-    return {"results": results}
-
 @router.get("/download-image/{filename}")
 async def download_image(filename: str):
     """생성된 이미지 다운로드"""
@@ -653,39 +577,3 @@ async def download_image(filename: str):
             return {"image_data": image_b64}
     else:
         raise HTTPException(status_code=404, detail="Image not found")
-
-# MongoDB에서 직접 이미지 가져오는 테스트
-@router.get("/get-image/{image_id}")
-async def get_image_from_db(image_id: str):
-    """MongoDB에서 이미지 직접 가져오기"""
-    from bson import ObjectId
-    
-    try:
-        result = await collection.find_one({"_id": ObjectId(image_id)})
-        if result:
-            return {
-                "image_data": base64.b64encode(result["image_data"]).decode(),
-                "content_type": result["content_type"],
-                "tag": result["tag"]
-            }
-        else:
-            raise HTTPException(status_code=404, detail="Image not found")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Invalid image ID")
-    
-@router.get("/test-mongo")
-async def test_mongo():
-    from bson.binary import Binary
-    test_data = {
-        "user_id": "testuser",
-        "tag": "test",
-        "image_data": Binary(b"dummy"),  # 실제 이미지가 아닌 테스트 바이트
-        "content_type": "image/png",
-        "created_at": datetime.now()
-    }
-    result = await collection.insert_one(test_data)
-    return {"inserted_id": str(result.inserted_id)}
-
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
