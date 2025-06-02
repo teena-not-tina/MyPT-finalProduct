@@ -28,7 +28,7 @@ scheduler = AsyncIOScheduler()
 # 사용자 통계 모델
 class UserStats(BaseModel):
     user_id: str
-    level: int = 0
+    progress: int = 0
     character: int = 4  # 기본값 4 (1~7 범위)
     created_at: datetime
     updated_at: datetime
@@ -45,7 +45,7 @@ async def weekly_update_task():
         updated_count = 0
         
         for user_stat in user_stats:
-            current_level = user_stat.get('level', 0)
+            current_level = user_stat.get('progress', 0)
             current_character = user_stat.get('character', 4)  # 기본값 4
             new_character = current_character
             
@@ -77,7 +77,7 @@ async def weekly_update_task():
                 {"_id": user_stat["_id"]},
                 {
                     "$set": {
-                        "level": 0,
+                        "progress": 0,
                         "updated_at": datetime.now()
                     }
                 }
@@ -130,13 +130,13 @@ async def init_user_stats(user_id: str, initial_level: int = 0, initial_characte
         return {
             "message": "User stats already exist", 
             "user_id": user_id, 
-            "level": existing["level"],
+            "progress": existing["progress"],
             "character": existing.get("character", 4)
         }
     
     user_stat = UserStats(
         user_id=user_id,
-        level=initial_level,
+        progress=initial_level,
         character=initial_character,
         created_at=datetime.now(),
         updated_at=datetime.now()
@@ -147,7 +147,7 @@ async def init_user_stats(user_id: str, initial_level: int = 0, initial_characte
     return {
         "message": "User stats initialized",
         "user_id": user_id,
-        "level": initial_level,
+        "progress": initial_level,
         "character": initial_character,
         "stats_id": str(result.inserted_id)
     }
@@ -204,7 +204,7 @@ async def update_user_level(user_id: str, new_level: int):
         {"user_id": decoded_user_id},
         {
             "$set": {
-                "level": new_level,
+                "progress": new_level,
                 "updated_at": datetime.now()
             }
         }
@@ -213,7 +213,7 @@ async def update_user_level(user_id: str, new_level: int):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User stats not found")
     
-    return {"message": "User level updated", "user_id": user_id, "new_level": new_level}
+    return {"message": "User progress updated", "user_id": user_id, "new_progress": new_level}
 
 # 수동으로 주간 업데이트 실행하는 엔드포인트 (테스트용)
 @router.get("/trigger-weekly-update")

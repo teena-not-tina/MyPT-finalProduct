@@ -512,10 +512,10 @@ function Navigation() {
       <div className="flex justify-between items-center">
         <div className="flex space-x-4">
           <Link to="/" className="text-blue-600 hover:text-blue-800 font-medium">Home</Link>
-          <Link to="/about" className="text-blue-600 hover:text-blue-800 font-medium">About</Link>
+          {/* <Link to="/about" className="text-blue-600 hover:text-blue-800 font-medium">About</Link>
           <Link to="/messages" className="text-blue-600 hover:text-blue-800 font-medium">Messages</Link>
           <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">Dashboard</Link>
-          <Link to="/profile" className="text-blue-600 hover:text-blue-800 font-medium">Profile</Link>
+          <Link to="/profile" className="text-blue-600 hover:text-blue-800 font-medium">Profile</Link> */}
         </div>
         <div className="flex items-center space-x-4">
           <span className="text-gray-700 flex items-center">
@@ -535,124 +535,6 @@ function Navigation() {
   );
 }
 
-// 프로필 페이지 컴포넌트
-function ProfilePage() {
-  const { user } = useAuth();
-  const [userInfo, setUserInfo] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  React.useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const data = await apiCall('http://localhost:8000/api/users/me');
-        setUserInfo(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserInfo();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="p-6 flex justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">오류: {error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">사용자 프로필</h2>
-      
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">사용자 ID</label>
-            <p className="mt-1 text-sm text-gray-900">{userInfo?.user_id}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700">이름</label>
-            <p className="mt-1 text-sm text-gray-900">{userInfo?.full_name || '설정되지 않음'}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700">이메일</label>
-            <p className="mt-1 text-sm text-gray-900">{userInfo?.email || '설정되지 않음'}</p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700">가입일</label>
-            <p className="mt-1 text-sm text-gray-900">
-              {userInfo?.created_at ? new Date(userInfo.created_at).toLocaleDateString('ko-KR') : '알 수 없음'}
-            </p>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700">계정 상태</label>
-            <span className={`mt-1 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-              userInfo?.is_active 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {userInfo?.is_active ? '활성' : '비활성'}
-            </span>
-          </div>
-        </div>
-        
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-            프로필 수정
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 임시 페이지 컴포넌트들
-function Home() {
-  return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">홈 페이지</h2>
-      <p>환영합니다! AI 이미지 생성 서비스에 오신 것을 환영합니다.</p>
-    </div>
-  );
-}
-
-function About() {
-  return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">About 페이지</h2>
-      <p>AI 기술을 활용한 이미지 생성 서비스입니다.</p>
-    </div>
-  );
-}
-
-function Messages() {
-  return (
-    <div className="p-6">
-      <h2 className="text-2xl font-bold mb-4">메시지 목록</h2>
-      <p>메시지 기능이 곧 추가될 예정입니다.</p>
-    </div>
-  );
-}
-
 // 메인 App 컴포넌트
 function App() {
   return (
@@ -663,29 +545,9 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            } />
-            <Route path="/about" element={
-              <ProtectedRoute>
-                <About />
-              </ProtectedRoute>
-            } />
-            <Route path="/messages" element={
-              <ProtectedRoute>
-                <Messages />
-              </ProtectedRoute>
-            } />
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <UserDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <ProfilePage />
               </ProtectedRoute>
             } />
             {/* 기본 경로 리다이렉트 */}

@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, Image, Calendar, ArrowRight, Loader2, Upload, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const UserDashboard = () => {
+  
+  const navigate = useNavigate();
+
+  const handleExerciseStart = () => {
+    navigate('/exercise'); // /exercise 경로로 이동
+  };
+
+  const handleDietRecord = () => {
+    navigate('/diet'); // /diet 경로로 이동
+  };
+
   const [dashboardData, setDashboardData] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -207,13 +219,12 @@ const UserDashboard = () => {
       const steps = [
         '이미지 분석 중...',
         'AI 모델 준비 중...',
-        '스타일 1/7 생성 중...',
-        '스타일 2/7 생성 중...',
-        '스타일 3/7 생성 중...',
-        '스타일 4/7 생성 중...',
-        '스타일 5/7 생성 중...',
-        '스타일 6/7 생성 중...',
-        '스타일 7/7 생성 중...',
+        '스타일 생성 중.',
+        '스타일 생성 중..',
+        '스타일 생성 중...',
+        '스타일 생성 중.',
+        '스타일 생성 중..',
+        '스타일 생성 중...',
         '결과 저장 중...'
       ];
 
@@ -345,293 +356,182 @@ const UserDashboard = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
-      {/* 헤더 */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Image className="h-8 w-8 text-purple-600 mr-3" />
-              <h1 className="text-2xl font-bold text-gray-900">AI 이미지 생성</h1>
+  // 1. 전체 배경을 회색으로 변경
+return (
+  <div className="min-h-screen bg-gray-100">
+    {/* 상단 버튼들 추가 */}
+    <div className="pt-8 pb-4">
+      <div className="max-w-4xl mx-auto px-4 flex justify-center gap-4">
+        <button 
+          onClick={handleExerciseStart}
+          className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-full font-medium transition-colors shadow-lg"
+        >
+          운동 시작하기
+        </button>
+        <button 
+          onClick={handleDietRecord}
+          className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-full font-medium transition-colors shadow-lg"
+        >
+          식단 기록하기
+        </button>
+      </div>
+    </div>
+
+    {/* 메인 컨텐츠 - 중앙 파란 원 */}
+    <main className="max-w-4xl mx-auto px-4">
+      <div className="flex justify-center items-center" style={{ minHeight: '60vh' }}>
+        {dashboardData?.has_image ? (
+          // 이미지가 있는 경우 - 파란 원 안에 이미지 표시
+          <div className="relative">
+            <div className="w-80 h-80 bg-blue-400 rounded-full flex items-center justify-center overflow-hidden shadow-lg">
+              <img
+                src={`data:${dashboardData.content_type};base64,${dashboardData.image_data}`}
+                alt={`AI 생성 아바타 (${dashboardData.tag || 'Unknown'} 스타일)`}
+                className="w-72 h-72 rounded-full object-cover"
+              />
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center text-gray-700">
-                <User className="h-5 w-5 mr-2" />
-                <span className="font-medium">{getUserId()}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="text-gray-500 hover:text-gray-700 transition-colors px-3 py-1 rounded-md hover:bg-gray-100"
-              >
-                로그아웃
-              </button>
+            {/* 스타일 태그 */}
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">
+              <span className="inline-block bg-purple-100 text-purple-800 text-sm px-3 py-1 rounded-full">
+                {dashboardData.tag || 'Unknown'} 스타일
+              </span>
             </div>
           </div>
-        </div>
-      </header>
+        ) : (
+          // 이미지가 없는 경우 - 빈 파란 원과 업로드 인터페이스
+          <div className="text-center">
+            {!generating ? (
+              <div className="space-y-8">
+                {/* 파란 원 영역 */}
+                <div className="relative">
+                  <div 
+                    className={`w-80 h-80 bg-blue-400 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      dragActive ? 'bg-blue-500 scale-105' : ''
+                    } ${previewUrl ? 'overflow-hidden' : ''}`}
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                  >
+                    {previewUrl ? (
+                      // 미리보기 이미지
+                      <div className="relative w-full h-full">
+                        <img
+                          src={previewUrl}
+                          alt="미리보기"
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                        <button
+                          onClick={handleClearFile}
+                          className="absolute top-4 right-4 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      // 업로드 인터페이스
+                      <div className="text-center text-white">
+                        <Upload className="h-16 w-16 mx-auto mb-4 opacity-80" />
+                        <p className="text-lg font-medium mb-2">
+                          이미지를 드래그하여<br />업로드하세요
+                        </p>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                          id="file-input"
+                        />
+                        <label
+                          htmlFor="file-input"
+                          className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-full cursor-pointer transition-all inline-block"
+                        >
+                          파일 선택
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-      {/* 메인 컨텐츠 */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* 왼쪽: 사용자 정보 */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">사용자 정보</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">사용자 ID:</span>
-                  <span className="font-medium">{getUserId()}</span>
+                {/* 에러 메시지 */}
+                {uploadError && (
+                  <div className="max-w-md mx-auto p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                    <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                    <span className="text-red-700 text-sm">{uploadError}</span>
+                  </div>
+                )}
+
+                {/* 성공 메시지 */}
+                {uploadSuccess && (
+                  <div className="max-w-md mx-auto p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                    <span className="text-green-700 font-medium">업로드 완료!</span>
+                  </div>
+                )}
+
+                {/* 액션 버튼들 */}
+                <div className="flex flex-col gap-4 items-center">
+                  {selectedFile && !uploadSuccess && (
+                    <button
+                      onClick={handleUploadImage}
+                      disabled={uploading}
+                      className="bg-blue-600 text-white px-8 py-3 rounded-full hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center font-medium"
+                    >
+                      {uploading ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                          업로드 중...
+                        </>
+                      ) : (
+                        "이미지 업로드"
+                      )}
+                    </button>
+                  )}
+
+                  {uploadSuccess && (
+                    <button
+                      onClick={handleGenerateImages}
+                      disabled={generating}
+                      className="bg-purple-600 text-white px-8 py-3 rounded-full hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center text-lg font-medium shadow-lg"
+                    >
+                      AI 이미지 생성 시작
+                      <ArrowRight className="ml-2 h-5 w-5" />
+                    </button>
+                  )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">생성된 이미지:</span>
-                  <span className="font-medium text-purple-600">
-                    {userProfile?.total_images || 0}개
-                  </span>
+              </div>
+            ) : (
+              // 생성 중 상태 - 파란 원 안에 로딩
+              <div className="space-y-6">
+                <div className="w-80 h-80 bg-blue-400 rounded-full flex flex-col items-center justify-center text-white">
+                  <Loader2 className="h-16 w-16 animate-spin mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">생성 중...</h3>
+                  <p className="text-sm opacity-90 text-center px-4">{generationStep}</p>
+                  
+                  {/* 진행률 바 - 원 안에 */}
+                  <div className="w-48 bg-white bg-opacity-20 rounded-full h-2 mt-4">
+                    <div
+                      className="bg-white h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${generationProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs mt-2 opacity-75">{generationProgress}% 완료</p>
                 </div>
-                {userProfile?.latest_creation && (
-                  <div className="flex items-start justify-between">
-                    <span className="text-gray-600">최근 생성:</span>
-                    <span className="font-medium text-sm text-right">
-                      {new Date(userProfile.latest_creation).toLocaleDateString('ko-KR', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </span>
+                
+                {generationError && (
+                  <div className="max-w-md mx-auto p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                    <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                    <span className="text-red-700 text-sm">{generationError}</span>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* 오른쪽: 메인 컨텐츠 */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-lg p-8">
-              {dashboardData?.has_image ? (
-                // 이미지가 있는 경우 - average 태그 이미지 표시
-                <div className="text-center">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6">당신의 AI 아바타</h2>
-                  <div className="max-w-md mx-auto mb-6">
-                    <div className="relative group">
-                      <img
-                        src={`data:${dashboardData.content_type};base64,${dashboardData.image_data}`}
-                        alt={`AI 생성 아바타 (${dashboardData.tag || 'Unknown'} 스타일)`}
-                        className="w-full h-auto rounded-lg shadow-lg transition-transform group-hover:scale-105"
-                        style={{ maxHeight: '400px', objectFit: 'contain' }}
-                      />
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-all"></div>
-                    </div>
-                  </div>
-                  <div className="mb-6">
-                    <p className="text-gray-600 mb-2">
-                      AI가 생성한 당신만의 특별한 아바타입니다.
-                    </p>
-                    <span className="inline-block bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
-                      {dashboardData.tag || 'Unknown'} 스타일
-                    </span>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button
-                      onClick={handleGoToGeneration}
-                      className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
-                    >
-                      새로운 이미지 생성하기
-                      <ArrowRight className="ml-2 h-5 w-5" />
-                    </button>
-                    <button 
-                      onClick={handleGoToGallery}
-                      className="bg-gray-100 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors"
-                    >
-                      모든 이미지 보기
-                    </button>
-                  </div>
-                  {dashboardData.created_at && (
-                    <p className="text-sm text-gray-500 mt-4 flex items-center justify-center">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      생성일: {new Date(dashboardData.created_at).toLocaleDateString('ko-KR')}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                // 이미지가 없는 경우 - 이미지 업로드와 생성 안내
-                <div className="text-center py-8">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6">AI 이미지 생성 시작하기</h2>
-                  
-                  {!generating ? (
-                    <div className="space-y-6">
-                      {/* 이미지 업로드 영역 */}
-                      <div className="max-w-md mx-auto">
-                        <div
-                          className={`relative border-2 border-dashed rounded-lg p-8 transition-colors ${
-                            dragActive
-                              ? 'border-purple-500 bg-purple-50'
-                              : 'border-gray-300 hover:border-purple-400'
-                          }`}
-                          onDragEnter={handleDrag}
-                          onDragLeave={handleDrag}
-                          onDragOver={handleDrag}
-                          onDrop={handleDrop}
-                        >
-                          {previewUrl ? (
-                            // 미리보기 표시
-                            <div className="space-y-4">
-                              <div className="relative">
-                                <img
-                                  src={previewUrl}
-                                  alt="미리보기"
-                                  className="w-full h-48 object-cover rounded-lg"
-                                />
-                                <button
-                                  onClick={handleClearFile}
-                                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              </div>
-                              <p className="text-sm text-gray-600">{selectedFile?.name}</p>
-                              
-                              {/* 업로드 성공 표시 */}
-                              {uploadSuccess && (
-                                <div className="flex items-center justify-center text-green-600 bg-green-50 p-2 rounded-lg">
-                                  <CheckCircle className="h-5 w-5 mr-2" />
-                                  <span className="text-sm font-medium">업로드 완료!</span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            // 업로드 인터페이스
-                            <div className="text-center">
-                              <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                              <p className="text-lg font-medium text-gray-700 mb-2">
-                                이미지를 드래그하거나 클릭하여 업로드
-                              </p>
-                              <p className="text-sm text-gray-500 mb-4">
-                                PNG, JPG, JPEG 파일 지원
-                              </p>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleFileInputChange}
-                                className="hidden"
-                                id="file-input"
-                              />
-                              <label
-                                htmlFor="file-input"
-                                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors cursor-pointer inline-block"
-                              >
-                                파일 선택
-                              </label>
-                            </div>
-                          )}
-                        </div>
-
-                        {uploadError && (
-                          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
-                            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                            <span className="text-red-700 text-sm">{uploadError}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 업로드 및 생성 버튼 */}
-                      <div className="flex flex-col gap-4 items-center">
-                        {/* 업로드 버튼 */}
-                        {selectedFile && !uploadSuccess && (
-                          <button
-                            onClick={handleUploadImage}
-                            disabled={uploading}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center"
-                          >
-                            {uploading ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                업로드 중...
-                              </>
-                            ) : (
-                              "이미지 업로드"
-                            )}
-                          </button>
-                        )}
-
-                        {/* 생성 버튼 */}
-                        {uploadSuccess && (
-                          <button
-                            onClick={handleGenerateImages}
-                            disabled={generating}
-                            className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center text-lg font-medium"
-                          >
-                            AI 이미지 생성 시작
-                            <ArrowRight className="ml-2 h-5 w-5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    // 생성 중 상태
-                    <div className="space-y-6">
-                      <div className="max-w-md mx-auto">
-                        <div className="mb-4">
-                          <Loader2 className="h-16 w-16 animate-spin text-purple-600 mx-auto mb-4" />
-                          <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                            AI 이미지 생성 중...
-                          </h3>
-                          <p className="text-gray-600 mb-4">{generationStep}</p>
-                        </div>
-
-                        {/* 진행률 바 */}
-                        <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-                          <div
-                            className="bg-purple-600 h-3 rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${generationProgress}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-sm text-gray-500">{generationProgress}% 완료</p>
-
-                        {generationError && (
-                          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
-                            <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-                            <span className="text-red-700 text-sm">{generationError}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 추가 정보 섹션 */}
-        {!dashboardData?.has_image && !generating && (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-lg p-6 text-center shadow-sm">
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🎯</span>
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">맞춤형 생성</h3>
-              <p className="text-gray-600 text-sm">당신의 사진을 기반으로 개인화된 이미지를 생성합니다.</p>
-            </div>
-            <div className="bg-white rounded-lg p-6 text-center shadow-sm">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🎨</span>
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">다양한 스타일</h3>
-              <p className="text-gray-600 text-sm">7가지 서로 다른 스타일로 한 번에 생성 가능합니다.</p>
-            </div>
-            <div className="bg-white rounded-lg p-6 text-center shadow-sm">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">⚡</span>
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">빠른 처리</h3>
-              <p className="text-gray-600 text-sm">AI 기술로 몇 분 내에 고품질 이미지를 생성합니다.</p>
-            </div>
+            )}
           </div>
         )}
-      </main>
-    </div>
-  );
+      </div>
+    </main>
+  </div>
+);
 };
 
 export default UserDashboard;
