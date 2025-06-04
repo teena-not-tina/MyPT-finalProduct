@@ -503,7 +503,6 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
             else:
                 print(f"스타일 {i+1} 실패: 출력 이미지 없음")
         
-        saved_results = []
         COMFY_OUTPUT_DIR = r"C:\Users\702-17\Documents\ComfyUI\output"  
         
         saved_images = {}
