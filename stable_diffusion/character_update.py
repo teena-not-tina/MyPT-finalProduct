@@ -29,7 +29,7 @@ scheduler = AsyncIOScheduler()
 class UserStats(BaseModel):
     user_id: str
     progress: int = 0
-    character: int = 4  # 기본값 4 (1~7 범위)
+    level: int = 4  # 기본값 4 (1~7 범위)
     created_at: datetime
     updated_at: datetime
 
@@ -45,20 +45,20 @@ async def weekly_update_task():
         updated_count = 0
         
         for user_stat in user_stats:
-            current_level = user_stat.get('progress', 0)
-            current_character = user_stat.get('character', 4)  # 기본값 4
+            current_progress = user_stat.get('progress', 0)
+            current_character = user_stat.get('level', 4)  # 기본값 4
             new_character = current_character
             
             # level 값에 따른 character 업데이트 로직
-            if current_level >= 4:
+            if current_progress >= 4:
                 new_character = min(current_character + 1, 7)  # 최댓값 7로 제한
-                logger.info(f"User {user_stat['user_id']}: level {current_level} >= 4, character {current_character} -> {new_character} (+1)")
-            elif current_level == 0:
+                logger.info(f"User {user_stat['user_id']}: level {current_progress} >= 4, character {current_character} -> {new_character} (+1)")
+            elif current_progress == 0:
                 new_character = max(current_character - 1, 1)  # 최솟값 1로 제한
-                logger.info(f"User {user_stat['user_id']}: level {current_level} == 0, character {current_character} -> {new_character} (-1)")
-            elif 1 <= current_level <= 3:
+                logger.info(f"User {user_stat['user_id']}: level {current_progress} == 0, character {current_character} -> {new_character} (-1)")
+            elif 1 <= current_progress <= 3:
                 # character 값 유지
-                logger.info(f"User {user_stat['user_id']}: level {current_level} (1-3), character {current_character} maintained")
+                logger.info(f"User {user_stat['user_id']}: level {current_progress} (1-3), character {current_character} maintained")
             
             # character 값이 변경된 경우에만 업데이트
             if new_character != current_character:
@@ -66,7 +66,7 @@ async def weekly_update_task():
                     {"_id": user_stat["_id"]},
                     {
                         "$set": {
-                            "character": new_character,
+                            "level": new_character,
                             "updated_at": datetime.now()
                         }
                     }
@@ -131,13 +131,13 @@ async def init_user_stats(user_id: str, initial_level: int = 0, initial_characte
             "message": "User stats already exist", 
             "user_id": user_id, 
             "progress": existing["progress"],
-            "character": existing.get("character", 4)
+            "level": existing.get("level", 4)
         }
     
     user_stat = UserStats(
         user_id=user_id,
         progress=initial_level,
-        character=initial_character,
+        level=initial_character,
         created_at=datetime.now(),
         updated_at=datetime.now()
     )
@@ -148,7 +148,7 @@ async def init_user_stats(user_id: str, initial_level: int = 0, initial_characte
         "message": "User stats initialized",
         "user_id": user_id,
         "progress": initial_level,
-        "character": initial_character,
+        "level": initial_character,
         "stats_id": str(result.inserted_id)
     }
 
@@ -168,21 +168,21 @@ async def get_user_stats(user_id: str):
     return user_stat
 
 @router.put("/update-user-character/{user_id}")
-async def update_user_character(user_id: str, new_character: int):
+async def update_user_character(user_id: str, new_level: int):
     """사용자 character 수동 업데이트"""
     # URL 디코딩 추가
     decoded_user_id = unquote(user_id)
     logger.info(f"Original user_id: {user_id}, Decoded user_id: {decoded_user_id}")
 
     # character 값 유효성 검사
-    if not (1 <= new_character <= 7):
+    if not (1 <= new_level <= 7):
         raise HTTPException(status_code=400, detail="Character value must be between 1 and 7")
     
     result = await user_stats_collection.update_one(
         {"user_id": decoded_user_id},
         {
             "$set": {
-                "character": new_character,
+                "level": new_level,
                 "updated_at": datetime.now()
             }
         }
@@ -191,7 +191,7 @@ async def update_user_character(user_id: str, new_character: int):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User stats not found")
     
-    return {"message": "User character updated", "user_id": user_id, "new_character": new_character}
+    return {"message": "User level updated", "user_id": user_id, "new_level": new_level}
 
 @router.put("/update-user-level/{user_id}")
 async def update_user_level(user_id: str, new_progress: int):

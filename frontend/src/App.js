@@ -1,7 +1,7 @@
 import React, { useState, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import { LogIn, Eye, EyeOff, LogOut, UserPlus, User } from 'lucide-react';
-import UserDashboard from './dashboard';
+import UserDashboard from './DashboardPage';
 
 // 인증 Context 생성
 const AuthContext = createContext();

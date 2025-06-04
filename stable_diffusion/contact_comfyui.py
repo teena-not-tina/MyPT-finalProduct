@@ -418,7 +418,7 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
             await user_stat_col.insert_one({
                 "user_id": user_id,
                 "progress": 0,
-                "character": 4,
+                "level": 4,
                 "created_at": now,
                 "updated_at": now,
             })
@@ -540,27 +540,27 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-# @router.get("/api/user/profile")
-# async def get_user_profile(user_id: str = Depends(verify_token)):
-#     """사용자 프로필 정보 조회"""
-#     try:
-#         # 사용자의 모든 생성된 이미지 수 조회
-#         total_images = await collection.count_documents({"user_id": user_id})
+@router.get("/api/user/profile")
+async def get_user_profile(user_id: str = Depends(verify_token)):
+    """사용자 프로필 정보 조회"""
+    try:
+        # 사용자의 모든 생성된 이미지 수 조회
+        total_images = await collection.count_documents({"user_id": user_id})
         
-#         # 가장 최근 생성 날짜 조회
-#         latest_creation = await collection.find_one(
-#             {"user_id": user_id},
-#             sort=[("created_at", -1)]
-#         )
+        # 가장 최근 생성 날짜 조회
+        latest_creation = await collection.find_one(
+            {"user_id": user_id},
+            sort=[("created_at", -1)]
+        )
         
-#         return {
-#             "user_id": user_id,
-#             "total_images": total_images,
-#             "latest_creation": latest_creation.get("created_at") if latest_creation else None
-#         }
+        return {
+            "user_id": user_id,
+            "total_images": total_images,
+            "latest_creation": latest_creation.get("created_at") if latest_creation else None
+        }
         
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     
 # 로그인 엔드포인트 (임시)

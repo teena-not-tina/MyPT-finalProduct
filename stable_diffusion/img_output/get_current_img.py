@@ -85,14 +85,14 @@ async def get_user_image(user_id: str):
             logger.warning(f"사용자 통계 정보 없음: {decoded_user_id}")
             raise HTTPException(status_code=404, detail="User stat not found")
         
-        character = user_stat.get("character")
+        character = user_stat.get("level")
         if not character or character not in CHARACTER_TAG_MAPPING:
-            logger.warning(f"잘못된 character 값: {character}")
-            raise HTTPException(status_code=400, detail="Invalid character value")
+            logger.warning(f"잘못된 level 값: {character}")
+            raise HTTPException(status_code=400, detail="Invalid level value")
         
         # 2. character 값을 tag로 변환
         required_tag = CHARACTER_TAG_MAPPING[character]
-        logger.info(f"태그 매핑: character={character} -> tag={required_tag}")
+        logger.info(f"태그 매핑: level={character} -> tag={required_tag}")
         
         # 3. user_image 데이터베이스의 user_image 컬렉션에서 딕셔너리 방식으로 이미지 조회
         user_img_doc = await db_user_image.user_image.find_one({
@@ -146,7 +146,7 @@ async def get_user_image_direct(user_id: str):
         if not user_stat:
             raise HTTPException(status_code=404, detail="User stat not found")
         
-        character = user_stat.get("character")
+        character = user_stat.get("level")
         if not character or character not in CHARACTER_TAG_MAPPING:
             raise HTTPException(status_code=400, detail="Invalid character value")
         
@@ -195,9 +195,9 @@ async def get_user_character_info(user_id: str):
         if not user_stat:
             raise HTTPException(status_code=404, detail="User stat not found")
         
-        character = user_stat.get("character")
+        character = user_stat.get("level")
         if not character or character not in CHARACTER_TAG_MAPPING:
-            raise HTTPException(status_code=400, detail="Invalid character value")
+            raise HTTPException(status_code=400, detail="Invalid level value")
         
         return {
             "user_id": decoded_user_id,
