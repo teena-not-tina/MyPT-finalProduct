@@ -4,40 +4,56 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../Shared/Header';
 
 function ExerciseCameraPage() {
-  const { id } = useParams(); // 루틴 ID를 가져올 수 있습니다.
+  const { id } = useParams();
   const navigate = useNavigate();
 
   const handleFinishAnalysis = () => {
     alert('자세 분석 종료 (실제 로직 구현 필요)');
-    navigate(`/routine/${id}`); // 루틴 상세 페이지로 돌아가기
+    navigate(`/routine/${id}`);
   };
 
   return (
-    <div className="page-container">
+    <div className="min-h-screen bg-gray-50">
       <Header title="자세 분석 중..." showBackButton={true} />
-      <div className="page-content-wrapper exercise-camera-page-content">
-        <p className="analysis-status">
-          <i className="fas fa-video"></i> 카메라 준비 중...
-        </p>
+      
+      <div className="px-4 py-6 space-y-6">
+        {/* 상태 표시 */}
+        <div className="flex items-center justify-center space-x-2 text-blue-600">
+          <i className="fas fa-video text-xl"></i>
+          <p className="text-lg font-medium">카메라 준비 중...</p>
+        </div>
         
-        {/* 카메라 피드/인식 영역 플레이스홀더 */}
-        <div className="camera-feed-placeholder">
-          {/* 실제 웹캠 스트림이 여기에 렌더링될 것입니다. */}
-          {/* <video ref={videoRef} autoPlay playsInline muted className="camera-video"></video> */}
-          <p>카메라 영상이 여기에 표시됩니다.</p>
-          <p>자세 인식을 위해 카메라를 바라봐 주세요.</p>
+        {/* 카메라 피드 영역 */}
+        <div className="bg-gray-900 rounded-lg aspect-video flex flex-col items-center justify-center text-white space-y-4 shadow-lg">
+          <div className="text-center space-y-2">
+            <i className="fas fa-camera text-4xl text-gray-400"></i>
+            <p className="text-lg">카메라 영상이 여기에 표시됩니다.</p>
+            <p className="text-sm text-gray-300">자세 인식을 위해 카메라를 바라봐 주세요.</p>
+          </div>
         </div>
 
-        {/* 운동 가이드 텍스트 (옵션) */}
-        <div className="exercise-guide">
-          <h3>다음 운동: 스쿼트</h3>
-          <p>반복 횟수: 3/10</p>
-          <p>자세를 정확히 유지해주세요!</p>
+        {/* 운동 가이드 */}
+        <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">다음 운동: 스쿼트</h3>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <p className="text-gray-700">반복 횟수: <span className="font-semibold text-blue-600">3/10</span></p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <p className="text-gray-700">자세를 정확히 유지해주세요!</p>
+            </div>
+          </div>
         </div>
 
         {/* 분석 종료 버튼 */}
-        <button className="end-analysis-button primary-button" onClick={handleFinishAnalysis}>
-          <i className="fas fa-stop-circle"></i> 분석 종료
+        <button 
+          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-4 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-2 shadow-sm"
+          onClick={handleFinishAnalysis}
+        >
+          <i className="fas fa-stop-circle text-xl"></i>
+          <span>분석 종료</span>
         </button>
       </div>
     </div>

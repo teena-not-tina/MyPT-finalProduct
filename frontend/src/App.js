@@ -9,6 +9,14 @@ import MenuRecommendationPage from './pages/Diet/MenuRecommendationPage';
 import ExerciseCameraPage from './pages/Routine/ExerciseCameraPage';
 import RoutineDetailPage from './pages/Routine/RoutineDetailPage';
 import RoutineOverviewPage from './pages/Routine/RoutineOverviewPage';
+import ChatbotPage from './pages/AI/ChatbotPage';
+import ChatbotAvatarPage from './pages/AI/AvatarProgressPage';
+// CV
+import MainPage from './pages/CV/MainPage';
+// CVcomponents
+import FoodDetection from './pages/CVcomponents/FoodDetection';
+import ImageUploader from './pages/CVcomponents/ImageUploader';
+import FridgeManager from './pages/CVcomponents/FridgeManager';
 import NotFoundPage from './pages/NotFoundPage';
 
 // 인증 Context 생성
@@ -107,6 +115,16 @@ function Navigation() {
 
 // 메인 App 컴포넌트
 function App() {
+
+  // 나중에 수정
+  // ----------------------------------------------------------------------------------------------------------
+  const [images, setImages] = useState([]);
+  const handleImagesSelected = (files) => setImages(files);
+
+  const [userId, setUserId] = useState('user_' + Date.now());
+  const [ingredients, setIngredients] = useState([]);
+  const onIngredientsChange = (newIngredients) => setIngredients(newIngredients);
+  // ----------------------------------------------------------------------------------------------------------
   return (
     <AuthProvider>
       <Router>
@@ -130,6 +148,11 @@ function App() {
             <Route path="/routine" element={<RoutineOverviewPage />} />
             <Route path="/routine/camera" element={<ExerciseCameraPage />} />
             <Route path="/routine/detail" element={<RoutineDetailPage />} />
+            <Route path="/chatbot" element={<ChatbotPage />} />
+            <Route path="/chatbot/avatar" element={<ChatbotAvatarPage />} />
+            <Route path="/food-detection" element={<FoodDetection />} />
+            <Route path="/image-uploader" element={<ImageUploader onImagesSelected={handleImagesSelected} />} />
+            <Route path="/fridge-manager" element={<FridgeManager userId={userId} ingredients={ingredients} onIngredientsChange={onIngredientsChange} />} />
           </Routes>
         </div>
       </Router>
