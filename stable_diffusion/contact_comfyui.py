@@ -21,14 +21,18 @@ import jwt
 import base64
 import traceback
 import re
+from dotenv import load_dotenv
+
+load_dotenv()
 
 router = APIRouter()
 security = HTTPBearer()
 
 # MongoDB 설정
-MONGO_URL = "mongodb://localhost:27017"
+MONGO_URL = os.getenv("MONGODB_URL")
+# MONGO_URL = "mongodb://localhost:27017"
 client = AsyncIOMotorClient(MONGO_URL)
-db = client.user_image  # MongoDB 데이터베이스 이름
+db = client.test  # MongoDB 데이터베이스 이름
 collection = db.user_image
 
 # ComfyUI 설정
@@ -409,20 +413,20 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
     
     try:
         # user_stats DB의 user_stat 컬렉션에 user_id 문서가 없으면 생성
-        user_stats_db = client.user_stats  # user_stats 데이터베이스
-        user_stat_col = user_stats_db.user_stat  # user_stat 컬렉션
+        # user_stats_db = client.test  # user_stats 데이터베이스
+        # user_stat_col = user_stats_db.users  
 
-        existing_stat = await user_stat_col.find_one({"user_id": user_id})
-        if not existing_stat:
-            now = datetime.now()
-            await user_stat_col.insert_one({
-                "user_id": user_id,
-                "progress": 0,
-                "level": 4,
-                "created_at": now,
-                "updated_at": now,
-            })
-            print(f"user_stat 컬렉션에 새 문서 생성: {user_id}")
+        # existing_stat = await user_stat_col.find_one({"email": user_id})
+        # if not existing_stat:
+        #     now = datetime.now()
+        #     await user_stat_col.insert_one({
+        #         "email": user_id,
+        #         "progress": 0,
+        #         "level": 4,
+        #         "created_at": now,
+        #         "updated_at": now,
+        #     })
+        #     print(f"user_stat 컬렉션에 새 문서 생성: {user_id}")
 
         # 사용자 이미지 찾기 (특수문자가 제거된 파일명으로 검색)
         safe_user_id = sanitize_filename(user_id)
@@ -443,12 +447,12 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
             raise HTTPException(status_code=404, detail=f"User image file not found: {user_image_filename}")
         
         results = []
+        seed = random.randint(0, 2**31 - 1)
+        print(f"사용할 시드: {seed}")
         
         # 7가지 스타일로 각각 생성
         for i, style in enumerate(STYLE_PROMPTS):
             print(f"\n스타일 {i+1}/7 처리 중: {style['style_name']}")
-            seed = random.randint(0, 2**31 - 1)
-            print(f"사용할 시드: {seed}")
             # 워크플로우 생성
             print("워크플로우 생성 중...")
             workflow = comfy_client.create_workflow(

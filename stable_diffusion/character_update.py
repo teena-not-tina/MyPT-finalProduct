@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 import asyncio
+import os
 import logging
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -9,6 +10,9 @@ from pydantic import BaseModel
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 router = APIRouter()
 
@@ -17,10 +21,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # MongoDB 설정
-MONGO_URL = "mongodb://localhost:27017"
+MONGO_URL = os.getenv("MONGODB_URL")
 client = AsyncIOMotorClient(MONGO_URL)
-db = client.user_stats  # MongoDB 데이터베이스 이름
-user_stats_collection = db.user_stat
+db = client.test  # MongoDB 데이터베이스 이름
+user_stats_collection = db.users
 
 # 스케줄러 인스턴스
 scheduler = AsyncIOScheduler()
@@ -129,7 +133,7 @@ async def init_user_stats(user_id: str, initial_level: int = 0, initial_characte
     if existing:
         return {
             "message": "User stats already exist", 
-            "user_id": user_id, 
+            "email": user_id, 
             "progress": existing["progress"],
             "level": existing.get("level", 4)
         }
@@ -159,7 +163,7 @@ async def get_user_stats(user_id: str):
     decoded_user_id = unquote(user_id)
     logger.info(f"Original user_id: {user_id}, Decoded user_id: {decoded_user_id}")
     
-    user_stat = await user_stats_collection.find_one({"user_id": decoded_user_id})
+    user_stat = await user_stats_collection.find_one({"email": decoded_user_id})
     
     if not user_stat:
         raise HTTPException(status_code=404, detail=f"User stats not found for user_id: {decoded_user_id}")
@@ -179,7 +183,7 @@ async def update_user_character(user_id: str, new_level: int):
         raise HTTPException(status_code=400, detail="Character value must be between 1 and 7")
     
     result = await user_stats_collection.update_one(
-        {"user_id": decoded_user_id},
+        {"email": decoded_user_id},
         {
             "$set": {
                 "level": new_level,
