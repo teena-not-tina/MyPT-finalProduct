@@ -69,7 +69,7 @@ async def root():
 async def get_user_image(user_id: str):
     """
     user_id를 기반으로 user_stat의 character 값에 따라 
-    matching되는 user_results의 이미지를 반환
+    딕셔너리 방식(images 필드)에 저장된 이미지를 반환
     """
     # URL 디코딩
     decoded_user_id = unquote(user_id)
@@ -94,13 +94,12 @@ async def get_user_image(user_id: str):
         required_tag = CHARACTER_TAG_MAPPING[character]
         logger.info(f"태그 매핑: character={character} -> tag={required_tag}")
         
-        # 3. user_image 데이터베이스의 user_results 컬렉션에서 이미지 조회
-        user_img = await db_user_image.user_results.find_one({
-            "user_id": decoded_user_id,
-            "tag": required_tag
+        # 3. user_image 데이터베이스의 user_image 컬렉션에서 딕셔너리 방식으로 이미지 조회
+        user_img_doc = await db_user_image.user_image.find_one({
+            "user_id": decoded_user_id
         })
         
-        if not user_img:
+        if not user_img_doc or "images" not in user_img_doc or required_tag not in user_img_doc["images"]:
             logger.warning(f"이미지 없음: user_id={decoded_user_id}, tag={required_tag}")
             raise HTTPException(
                 status_code=404, 
@@ -108,7 +107,8 @@ async def get_user_image(user_id: str):
             )
         
         # 4. Binary 이미지 데이터를 Base64로 인코딩
-        image_data = user_img.get("image_data")
+        image_info = user_img_doc["images"][required_tag]
+        image_data = image_info.get("image_data")
         if not image_data:
             raise HTTPException(status_code=404, detail="Image data not found")
         
@@ -121,7 +121,7 @@ async def get_user_image(user_id: str):
             "character": character,
             "tag": required_tag,
             "image_data": base64_image,
-            "image_format": user_img.get("image_format", "jpeg")
+            "image_format": image_info.get("content_type", "image/png")
         }
         
     except HTTPException:

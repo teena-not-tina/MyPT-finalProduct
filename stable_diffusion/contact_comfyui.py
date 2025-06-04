@@ -29,7 +29,7 @@ security = HTTPBearer()
 MONGO_URL = "mongodb://localhost:27017"
 client = AsyncIOMotorClient(MONGO_URL)
 db = client.user_image  # MongoDB 데이터베이스 이름
-collection = db.user_results
+collection = db.user_image
 
 # ComfyUI 설정
 COMFYUI_URL = "http://127.0.0.1:8188"
@@ -502,6 +502,7 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
         saved_results = []
         COMFY_OUTPUT_DIR = r"C:\Users\702-17\Documents\ComfyUI\output"  
         
+        saved_images = {}
         for result in results:
             try:
                 image_path = os.path.join(COMFY_OUTPUT_DIR, result["output_filename"])
@@ -509,57 +510,57 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
                     async with aiofiles.open(image_path, 'rb') as f:
                         image_data = await f.read()
                     
-                    # 직접 dict로 저장
-                    image_doc = {
-                        "user_id": user_id,
-                        "tag": result["style_name"],
-                        "image_data": Binary(image_data), 
-                        "content_type": "image/png",
-                        "created_at": datetime.now()
+                    # tag별로 이미지 정보 저장
+                    saved_images[result["tag"] if "tag" in result else result["style_name"]] = {
+                        "image_data": Binary(image_data),
                     }
-                    insert_result = await collection.insert_one(image_doc)
-                    result["mongodb_id"] = str(insert_result.inserted_id)
-                    saved_results.append(result)
-                    
-                    print(f"MongoDB 저장 성공: {insert_result.inserted_id}")
             except Exception as e:
                 print(f"Error saving image {result['output_filename']}: {str(e)}")
                 traceback.print_exc()
                 continue
         
+        if saved_images:
+            image_doc = {
+                "user_id": user_id,
+                "images": saved_images,
+                "content_type": "image/png",
+                "created_at": datetime.now()
+            }
+            insert_result = await collection.insert_one(image_doc)
+            print(f"MongoDB에 저장 성공: {insert_result.inserted_id}")
+
         return {
             "generation_id": generation_id,
             "status": "completed",
-            "results": saved_results,
-            "total_saved": len(saved_results),
-            "message": f"Successfully generated {len(saved_results)} images"
+            "mongodb_id": str(insert_result.inserted_id) if saved_images else None,
+            "message": f"Successfully generated {len(saved_images)} images"
         }
         
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/api/user/profile")
-async def get_user_profile(user_id: str = Depends(verify_token)):
-    """사용자 프로필 정보 조회"""
-    try:
-        # 사용자의 모든 생성된 이미지 수 조회
-        total_images = await collection.count_documents({"user_id": user_id})
+# @router.get("/api/user/profile")
+# async def get_user_profile(user_id: str = Depends(verify_token)):
+#     """사용자 프로필 정보 조회"""
+#     try:
+#         # 사용자의 모든 생성된 이미지 수 조회
+#         total_images = await collection.count_documents({"user_id": user_id})
         
-        # 가장 최근 생성 날짜 조회
-        latest_creation = await collection.find_one(
-            {"user_id": user_id},
-            sort=[("created_at", -1)]
-        )
+#         # 가장 최근 생성 날짜 조회
+#         latest_creation = await collection.find_one(
+#             {"user_id": user_id},
+#             sort=[("created_at", -1)]
+#         )
         
-        return {
-            "user_id": user_id,
-            "total_images": total_images,
-            "latest_creation": latest_creation.get("created_at") if latest_creation else None
-        }
+#         return {
+#             "user_id": user_id,
+#             "total_images": total_images,
+#             "latest_creation": latest_creation.get("created_at") if latest_creation else None
+#         }
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     
 # 로그인 엔드포인트 (임시)
@@ -586,17 +587,17 @@ async def login(login_data: dict):
     else:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@router.get("/download-image/{filename}")
-async def download_image(filename: str):
-    """생성된 이미지 다운로드"""
-    # ComfyUI output 디렉토리에서 이미지 가져오기
-    comfy_output_dir = "ComfyUI/output"  # ComfyUI 설치 경로에 맞게 수정
-    image_path = os.path.join(comfy_output_dir, filename)
+# @router.get("/download-image/{filename}")
+# async def download_image(filename: str):
+#     """생성된 이미지 다운로드"""
+#     # ComfyUI output 디렉토리에서 이미지 가져오기
+#     comfy_output_dir = "ComfyUI/output"  # ComfyUI 설치 경로에 맞게 수정
+#     image_path = os.path.join(comfy_output_dir, filename)
     
-    if os.path.exists(image_path):
-        async with aiofiles.open(image_path, 'rb') as f:
-            image_data = await f.read()
-            image_b64 = base64.b64encode(image_data).decode()
-            return {"image_data": image_b64}
-    else:
-        raise HTTPException(status_code=404, detail="Image not found")
+#     if os.path.exists(image_path):
+#         async with aiofiles.open(image_path, 'rb') as f:
+#             image_data = await f.read()
+#             image_b64 = base64.b64encode(image_data).decode()
+#             return {"image_data": image_b64}
+#     else:
+#         raise HTTPException(status_code=404, detail="Image not found")
