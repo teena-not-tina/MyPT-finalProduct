@@ -9,6 +9,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 import aiohttp
 import aiofiles
+from PIL import Image
+import io
 import os
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -43,7 +45,6 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # JWT 설정 (실제 환경에서는 환경변수로 관리)
 SECRET_KEY = "your-secret-key-here"
 ALGORITHM = "HS256"
-
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """JWT 토큰 검증"""
@@ -155,7 +156,7 @@ class ComfyUIClient:
                 "inputs": {
                     "model": ["14", 0],
                     "clip": ["14", 1],
-                    "lora_name": "add_detail.safetensors",
+                    "lora_name": "arcane_offset.safetensors",
                     "strength_model": 1.0,
                     "strength_clip": 1.0
                 }
@@ -174,7 +175,7 @@ class ComfyUIClient:
                     "model": ["35", 0],
                     "ipadapter": ["35", 1],
                     "image": ["36", 0],
-                    "weight": 0.5,
+                    "weight": 0.7,
                     "weight_type": "linear",
                     "combine_embeds": "concat",
                     "start_at": 0.0,
@@ -204,7 +205,7 @@ class ComfyUIClient:
                     "negative": ["7", 0],
                     "control_net": ["21", 0],
                     "image": ["20", 0],
-                    "strength": 0.6,
+                    "strength": 0.53,
                     "start_percent": 0.1,
                     "end_percent": 0.7
                 }
@@ -372,14 +373,20 @@ async def upload_user_image(file: UploadFile = File(...), user_id: str = Depends
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are allowed")
     
-    # 사용자별 파일명으로 저장 - 특수문자 제거
     file_extension = file.filename.split('.')[-1]
-    safe_user_id = sanitize_filename(user_id)  # user_id의 특수문자 제거
+    safe_user_id = sanitize_filename(user_id)
     filename = f"{safe_user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
     file_path = os.path.join(UPLOAD_DIR, filename)
     
+    content = await file.read()  # 파일 내용을 한 번만 읽음
+    # 이미지 파일 검증
+    try:
+        Image.open(io.BytesIO(content)).verify()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image file. Please upload a valid image.")
+
+    # 검증 통과 후 저장
     async with aiofiles.open(file_path, 'wb') as f:
-        content = await file.read()
         await f.write(content)
     
     return {"message": "File uploaded successfully", "filename": filename}
@@ -401,6 +408,22 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
         raise HTTPException(status_code=404, detail="Base image not found")
     
     try:
+        # user_stats DB의 user_stat 컬렉션에 user_id 문서가 없으면 생성
+        user_stats_db = client.user_stats  # user_stats 데이터베이스
+        user_stat_col = user_stats_db.user_stat  # user_stat 컬렉션
+
+        existing_stat = await user_stat_col.find_one({"user_id": user_id})
+        if not existing_stat:
+            now = datetime.now()
+            await user_stat_col.insert_one({
+                "user_id": user_id,
+                "progress": 0,
+                "character": 4,
+                "created_at": now,
+                "updated_at": now,
+            })
+            print(f"user_stat 컬렉션에 새 문서 생성: {user_id}")
+
         # 사용자 이미지 찾기 (특수문자가 제거된 파일명으로 검색)
         safe_user_id = sanitize_filename(user_id)
         user_files = [f for f in os.listdir(UPLOAD_DIR) if f.startswith(safe_user_id)]
@@ -425,7 +448,7 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
         for i, style in enumerate(STYLE_PROMPTS):
             print(f"\n스타일 {i+1}/7 처리 중: {style['style_name']}")
             seed = random.randint(0, 2**31 - 1)
-            
+            print(f"사용할 시드: {seed}")
             # 워크플로우 생성
             print("워크플로우 생성 중...")
             workflow = comfy_client.create_workflow(
