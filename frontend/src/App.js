@@ -78,6 +78,7 @@ const apiCall = async (url, options = {}) => {
 // 보호된 라우트 컴포넌트
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
+  alert("로그인 후 이용해주세요.");
   return isAuthenticated ? children : <Navigate to="/login" />;
 }
 
@@ -125,20 +126,21 @@ function App() {
   const [ingredients, setIngredients] = useState([]);
   const onIngredientsChange = (newIngredients) => setIngredients(newIngredients);
   // ----------------------------------------------------------------------------------------------------------
+  
   return (
     <AuthProvider>
       <Router>
         <div className="App min-h-screen bg-gray-50">
           <Navigation />
           <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/dashboard" element={
+            <Route path="/" element={
               <ProtectedRoute>
                 <DashboardPage />
               </ProtectedRoute>
             } />
-            <Route path="/" element={
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/dashboard" element={
               <ProtectedRoute>
                 <DashboardPage />
               </ProtectedRoute>
@@ -150,6 +152,7 @@ function App() {
             <Route path="/routine/detail" element={<RoutineDetailPage />} />
             <Route path="/chatbot" element={<ChatbotPage />} />
             <Route path="/chatbot/avatar" element={<ChatbotAvatarPage />} />
+            <Route path="/cv" element={<MainPage />} />
             <Route path="/food-detection" element={<FoodDetection />} />
             <Route path="/image-uploader" element={<ImageUploader onImagesSelected={handleImagesSelected} />} />
             <Route path="/fridge-manager" element={<FridgeManager userId={userId} ingredients={ingredients} onIngredientsChange={onIngredientsChange} />} />

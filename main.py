@@ -1,9 +1,21 @@
 from fastapi import FastAPI
 from models import MsgPayload
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from stable_diffusion import contact_comfyui, character_update
 from stable_diffusion.img_output import get_current_img
+import os
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
 
+load_dotenv
+
+# MongoDB 설정
+MONGO_URL = os.getenv("MONGODB_URL")
+# MONGO_URL = "mongodb://localhost:27017"
+client = AsyncIOMotorClient(MONGO_URL)
+db = client.test  # MongoDB 데이터베이스 이름
+users_collection = db.users
 
 app = FastAPI()
 messages_list: dict[int, MsgPayload] = {}
@@ -47,3 +59,10 @@ def add_msg(msg_name: str) -> dict[str, MsgPayload]:
 @app.get("/messages")
 def message_items() -> dict[str, dict[int, MsgPayload]]:
     return {"messages:": messages_list}
+
+# @app.post("/login")
+# def login(username: str, password: str) -> dict[str, str]:
+#     user = await users_collection.find_one({"email": username, "password": password})
+#     if not user:
+#         raise HTTPException(status_code=401, detail="Invalid username or password")
+#     return {"message": "Login successful", "user_id": str(user["_id"])}

@@ -7,7 +7,7 @@ const UserDashboard = () => {
   const navigate = useNavigate();
 
   const handleExerciseStart = () => {
-    navigate('/exercise'); // /exercise 경로로 이동
+    navigate('/routine'); // /exercise 경로로 이동
   };
 
   const handleDietRecord = () => {

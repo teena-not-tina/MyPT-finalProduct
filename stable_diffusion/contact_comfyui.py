@@ -566,29 +566,29 @@ async def get_user_profile(user_id: str = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     
-# 로그인 엔드포인트 (임시)
-@router.post("/api/auth/login")
-async def login(login_data: dict):
-    """로그인 처리 (임시)"""
-    # 실제로는 사용자 인증 로직이 들어가야 함
-    user_id = login_data.get("user_id")
-    password = login_data.get("password")
+# # 로그인 엔드포인트 (임시)
+# @router.post("/api/auth/login")
+# async def login(login_data: dict):
+#     """로그인 처리 (임시)"""
+#     # 실제로는 사용자 인증 로직이 들어가야 함
+#     user_id = login_data.get("user_id")
+#     password = login_data.get("password")
     
-    if not user_id or not password:
-        raise HTTPException(status_code=400, detail="User ID and password required")
+#     if not user_id or not password:
+#         raise HTTPException(status_code=400, detail="User ID and password required")
     
-    # 여기서 실제 사용자 인증을 수행
-    # 예시로 간단히 처리
-    if password == "test":  # 실제 환경에서는 해시된 비밀번호 비교
-        # JWT 토큰 생성
-        token = jwt.encode({"user_id": user_id}, SECRET_KEY, algorithm=ALGORITHM)
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user_id": user_id
-        }
-    else:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+#     # 여기서 실제 사용자 인증을 수행
+#     # 예시로 간단히 처리
+#     if password == "test":  # 실제 환경에서는 해시된 비밀번호 비교
+#         # JWT 토큰 생성
+#         token = jwt.encode({"user_id": user_id}, SECRET_KEY, algorithm=ALGORITHM)
+#         return {
+#             "access_token": token,
+#             "token_type": "bearer",
+#             "user_id": user_id
+#         }
+#     else:
+#         raise HTTPException(status_code=401, detail="Invalid credentials")
 
 # @router.get("/download-image/{filename}")
 # async def download_image(filename: str):
