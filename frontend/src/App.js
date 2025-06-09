@@ -75,12 +75,11 @@ const apiCall = async (url, options = {}) => {
   return await response.json();
 };
 
-// 보호된 라우트 컴포넌트
-function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth();
-  alert("로그인 후 이용해주세요.");
-  return isAuthenticated ? children : <Navigate to="/login" />;
-}
+// // 보호된 라우트 컴포넌트
+// function ProtectedRoute({ children }) {
+//   const { isAuthenticated } = useAuth();
+//   return isAuthenticated ? children : <Navigate to="/login" />;
+// }
 
 // 네비게이션 컴포넌트
 function Navigation() {
@@ -133,18 +132,10 @@ function App() {
         <div className="App min-h-screen bg-gray-50">
           <Navigation />
           <Routes>
-            <Route path="/" element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            } />
+            <Route path="/" element={<LoginPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            } />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/diet" element={<IngredientInputPage />} />
             <Route path="/diet/recommendation" element={<MenuRecommendationPage />} />
             <Route path="/routine" element={<RoutineOverviewPage />} />

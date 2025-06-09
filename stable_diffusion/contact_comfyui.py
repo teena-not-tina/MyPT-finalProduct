@@ -372,7 +372,7 @@ async def check_comfyui_status():
         return False
 
 @router.post("/upload-user-image")
-async def upload_user_image(file: UploadFile = File(...), user_id: str = Depends(verify_token)):
+async def upload_user_image(file: UploadFile = File(...), user_id: int = Depends(verify_token)):
     """사용자 이미지 업로드 (JWT 인증 적용)"""
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are allowed")
@@ -396,7 +396,7 @@ async def upload_user_image(file: UploadFile = File(...), user_id: str = Depends
     return {"message": "File uploaded successfully", "filename": filename}
 
 @router.post("/generate-images")
-async def generate_images(request: GenerationRequest, user_id: str = Depends(verify_token)):
+async def generate_images(request: GenerationRequest, user_id: int = Depends(verify_token)):
     """7가지 스타일로 이미지 생성 (JWT 인증 적용)"""
     # ComfyUI 서버 상태 먼저 확인
     print("ComfyUI 서버 상태 확인 중...")
@@ -412,7 +412,7 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
         raise HTTPException(status_code=404, detail="Base image not found")
     
     try:
-        # user_stats DB의 user_stat 컬렉션에 user_id 문서가 없으면 생성
+        # test DB의 users 컬렉션에 user_id 문서가 없으면 생성
         # user_stats_db = client.test  # user_stats 데이터베이스
         # user_stat_col = user_stats_db.users  
 
@@ -544,7 +544,7 @@ async def generate_images(request: GenerationRequest, user_id: str = Depends(ver
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/user/profile")
-async def get_user_profile(user_id: str = Depends(verify_token)):
+async def get_user_profile(user_id: int = Depends(verify_token)):
     """사용자 프로필 정보 조회"""
     try:
         # 사용자의 모든 생성된 이미지 수 조회

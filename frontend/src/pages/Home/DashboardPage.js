@@ -18,6 +18,7 @@ const UserDashboard = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [authError, setAuthError] = useState(false); // 인증 에러 상태 추가
   
   // 이미지 업로드 관련 상태
   const [selectedFile, setSelectedFile] = useState(null);
@@ -43,36 +44,43 @@ const UserDashboard = () => {
     return sessionStorage.getItem('user_id');
   };
 
-  // API 호출 함수
-  const fetchWithAuth = async (url, options = {}) => {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+  let alertShown = false;
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        // 토큰이 만료되었거나 유효하지 않음
-        sessionStorage.removeItem('access_token');
-        sessionStorage.removeItem('user_id');
-        alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-        return;
-      }
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
+// 2. fetchWithAuth 함수 수정 - alertShown 전역변수 제거하고 로직 개선
+const fetchWithAuth = async (url, options = {}) => {
+  const token = getAuthToken();
+  if (!token) {
+    setAuthError(true);
+    throw new Error('No authentication token found');
+  }
+  
+  // GET 요청이면 Content-Type 헤더 제거
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    ...(isGet ? {} : { 'Content-Type': 'application/json' }),
+    ...options.headers,
   };
 
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  // if (!response.ok) {
+  //   if (response.status === 401) {
+  //     // 토큰이 만료되었거나 유효하지 않음
+  //     sessionStorage.removeItem('access_token');
+  //     sessionStorage.removeItem('user_id');
+  //     sessionStorage.removeItem('token_type');
+  //     setAuthError(true);
+  //     throw new Error('Authentication failed');
+  //   }
+  //   throw new Error(`HTTP error! status: ${response.status}`);
+  // }
+
+  return response.json();
+};
   // 대시보드 데이터 로드
   const loadDashboardData = async () => {
     try {
@@ -281,16 +289,27 @@ const UserDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    // 토큰 확인
-    const token = getAuthToken();
-    if (!token) {
-      alert('로그인이 필요합니다.');
-      return;
-    }
-    
-    loadDashboardData();
-  }, []);
+// 3. useEffect 수정 - 토큰 검증 로직 개선
+useEffect(() => {
+  const token = getAuthToken();
+  const userId = getUserId();
+
+  console.log("Dashboard useEffect 실행");
+  console.log("access_token:", token);
+  console.log("user_id:", userId);
+
+  if (!token || !userId) {
+    console.warn('인증 정보 없음. 로그인으로 이동');
+    setAuthError(true);
+    setTimeout(() => {
+      navigate('/login');
+    }, 1000);
+    return;
+  }
+
+  // 인증 정보가 명확히 존재하는 경우에만 load
+  loadDashboardData();
+}, []);
 
   // 컴포넌트 언마운트 시 URL 정리
   useEffect(() => {
@@ -355,6 +374,25 @@ const UserDashboard = () => {
       </div>
     );
   }
+
+if (authError) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 flex items-center justify-center">
+      <div className="bg-white p-8 rounded-lg shadow-lg text-center max-w-md">
+        <div className="text-red-500 mb-4">
+          <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">인증이 필요합니다</h2>
+        <p className="text-gray-600 mb-4">로그인 페이지로 이동합니다...</p>
+        <div className="flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
   // 1. 전체 배경을 회색으로 변경
 return (

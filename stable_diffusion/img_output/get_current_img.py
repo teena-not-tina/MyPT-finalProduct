@@ -8,6 +8,7 @@ from typing import Optional
 import os
 from dotenv import load_dotenv
 from urllib.parse import unquote
+import bson
 
 import logging
 
@@ -66,26 +67,26 @@ async def root():
 
 
 @router.get("/user/{user_id}/image")
-async def get_user_image(user_id: str):
+async def get_user_image(user_id: int):
     """
     user_id를 기반으로 user_stat의 character 값에 따라 
-    딕셔너리 방식(images 필드)에 저장된 이미지를 반환
+    food 필드가 있으면 food 이미지를, 없으면 images 딕셔너리에서 반환
     """
-    decoded_user_id = unquote(user_id)
-    logger.info(f"이미지 요청: user_id={decoded_user_id}")
+    # decoded_user_id = unquote(user_id)
+    logger.info(f"이미지 요청: user_id={user_id}")
 
     try:
         db_user_image, db_user_stats = await get_database_connection()
         
         # 1. user_stat에서 character 값 조회
-        user_stat = await db_user_stats.user_stat.find_one({"user_id": decoded_user_id})
+        user_stat = await db_user_stats.users.find_one({"user_id": user_id})
         if not user_stat:
-            logger.warning(f"사용자 통계 정보 없음: {decoded_user_id}")
+            logger.warning(f"사용자 통계 정보 없음: {user_id}")
             raise HTTPException(status_code=404, detail="User stat not found")
         
-        character = user_stat.get("character")
+        character = user_stat.get("level")
         if not character or character not in CHARACTER_TAG_MAPPING:
-            logger.warning(f"잘못된 character 값: {character}")
+            logger.warning(f"잘못된 level 값: {character}")
             raise HTTPException(status_code=400, detail="Invalid character value")
         
         required_tag = CHARACTER_TAG_MAPPING[character]
@@ -93,37 +94,47 @@ async def get_user_image(user_id: str):
         
         # 2. user_image에서 이미지 조회
         user_img_doc = await db_user_image.user_image.find_one({
-            "user_id": decoded_user_id
+            "user_id": user_id
         })
-        if not user_img_doc or "images" not in user_img_doc:
-            logger.warning(f"이미지 없음: user_id={decoded_user_id}")
+        if not user_img_doc:
+            logger.warning(f"이미지 없음: user_id={user_id}")
             raise HTTPException(status_code=404, detail="Image not found for user {decoded_user_id}")
 
-        images_dict = user_img_doc["images"]
-
-        # food 키가 있으면 food 이미지 우선 반환
-        if "food" in images_dict:
-            image_info = images_dict["food"]
+        # 2-1. 최상위 food 필드 우선 반환
+        if "food" in user_img_doc and user_img_doc["food"]:
+            image_info = user_img_doc["food"]
             tag_used = "food"
-        elif required_tag in images_dict:
-            image_info = images_dict[required_tag]
+        # 2-2. images 딕셔너리에서 tag로 반환
+        elif "images" in user_img_doc and required_tag in user_img_doc["images"]:
+            image_info = user_img_doc["images"][required_tag]
             tag_used = required_tag
         else:
-            logger.warning(f"이미지 없음: user_id={decoded_user_id}, tag={required_tag} 또는 food")
+            logger.warning(f"이미지 없음: user_id={user_id}, tag={required_tag} 또는 food")
             raise HTTPException(
                 status_code=404, 
-                detail=f"Image not found for user {decoded_user_id} with tag '{required_tag}' or 'food'"
+                detail=f"Image not found for user {user_id} with tag '{required_tag}' or 'food'"
             )
 
         image_data = image_info.get("image_data")
         if not image_data:
             raise HTTPException(status_code=404, detail="Image data not found")
+
+        # Binary 타입이면 bytes로 변환해서 base64 인코딩
+        if isinstance(image_data, bson.binary.Binary):
+            base64_image = base64.b64encode(bytes(image_data)).decode('utf-8')
+        # 이미 str이면 그대로 사용
+        elif isinstance(image_data, str):
+            base64_image = image_data
+        # bytes 타입이면 인코딩
+        elif isinstance(image_data, bytes):
+            base64_image = base64.b64encode(image_data).decode('utf-8')
+        else:
+            raise HTTPException(status_code=500, detail="Unsupported image_data type")
+
         
-        base64_image = base64.b64encode(image_data).decode('utf-8')
-        
-        logger.info(f"이미지 반환 성공: user_id={decoded_user_id}, tag={tag_used}")
+        logger.info(f"이미지 반환 성공: user_id={user_id}, tag={tag_used}")
         return {
-            "user_id": decoded_user_id,
+            "user_id": user_id,
             "character": character,
             "tag": tag_used,
             "image_data": base64_image,
@@ -137,17 +148,17 @@ async def get_user_image(user_id: str):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
      
 @router.get("/user/{user_id}/image/direct")
-async def get_user_image_direct(user_id: str):
+async def get_user_image_direct(user_id: int):
     """
     이미지를 직접 반환 (img src로 사용 가능)
     """
-    decoded_user_id = unquote(user_id)
+    # decoded_user_id = unquote(user_id)
     
     try:
         db_user_image, db_user_stats = await get_database_connection()
         
         # user_stats에서 character 값 조회
-        user_stat = await db_user_stats.users.find_one({"user_id": decoded_user_id})
+        user_stat = await db_user_stats.users.find_one({"user_id": user_id})
         
         if not user_stat:
             raise HTTPException(status_code=404, detail="User stat not found")
@@ -160,14 +171,14 @@ async def get_user_image_direct(user_id: str):
         
         # user_image에서 이미지 조회
         user_img = await db_user_image.user_results.find_one({
-            "user_id": decoded_user_id,
+            "user_id": user_id,
             "tag": required_tag
         })
         
         if not user_img:
             raise HTTPException(
                 status_code=404, 
-                detail=f"Image not found for user {decoded_user_id} with tag '{required_tag}'"
+                detail=f"Image not found for user {user_id} with tag '{required_tag}'"
             )
         
         image_data = user_img.get("image_data")
