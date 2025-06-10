@@ -16,8 +16,14 @@ const useAuthStore = create((set) => ({
   // 로그아웃 액션
   logout: () => {
     set({ isAuthenticated: false, user: null, token: null });
-    localStorage.removeItem('userToken'); // 토큰 제거
-    localStorage.removeItem('userData'); // 사용자 정보 제거
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_id');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+    // sessionStorage도 함께 초기화
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('user_id');
+    sessionStorage.removeItem('token_type');
   },
 
   // 앱 초기 로드 시 로컬 스토리지에서 토큰 확인

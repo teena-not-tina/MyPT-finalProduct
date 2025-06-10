@@ -2,12 +2,16 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
+import useAuthStore from '../../stores/authStore';
+
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const login = useAuthStore((state) => state.login);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,6 +44,11 @@ export default function LoginPage() {
         console.log('저장된 토큰:', data.access_token);
         console.log('토큰 타입:', data.token_type);
         console.log('사용자 ID:', data.user_id);  
+
+        login(
+        { user_id: data.user_id, email: data.email }, // userData
+        data.access_token // token
+        );
 
         // 대시보드로 이동
         setTimeout(() => {

@@ -352,6 +352,7 @@ useEffect(() => {
     alert('로그아웃되었습니다.');
     console.log('로그아웃');
   };
+  
 
   // 로딩 상태
   if (loading) {
