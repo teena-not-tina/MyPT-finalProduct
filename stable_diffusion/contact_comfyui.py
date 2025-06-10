@@ -22,6 +22,11 @@ import base64
 import traceback
 import re
 from dotenv import load_dotenv
+import logging
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -47,20 +52,46 @@ os.makedirs(BASE_IMAGES_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # JWT 설정 (실제 환경에서는 환경변수로 관리)
-SECRET_KEY = "your-secret-key-here"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = "HS256"
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """JWT 토큰 검증"""
     try:
+        if not credentials:
+            logger.info("인증 정보 없음")
+            raise HTTPException(status_code=401, detail="No credentials provided")
+            
         token = credentials.credentials
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("user_id")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        return user_id
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        logger.info(f"받은 토큰: {token[:20]}...")  # 토큰 일부만 로깅
+        
+        try:
+            payload = jwt.decode(
+                token, 
+                SECRET_KEY, 
+                algorithms=[ALGORITHM],
+                options={"verify_signature": True}
+            )
+            logger.info(f"디코딩된 페이로드: {payload}")
+            
+            user_id = payload.get("user_id")
+            logger.info(f"추출된 user_id: {user_id}")
+            
+            if not user_id:
+                raise HTTPException(status_code=401, detail="user_id not found in token")
+                
+            return int(user_id)
+            
+        except jwt.ExpiredSignatureError:
+            logger.error("토큰 만료됨")
+            raise HTTPException(status_code=401, detail="Token has expired")
+        except jwt.InvalidTokenError as e:
+            logger.error(f"유효하지 않은 토큰: {str(e)}")
+            raise HTTPException(status_code=401, detail="Invalid token format")
+            
+    except Exception as e:
+        logger.error(f"토큰 검증 에러: {str(e)}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 # 7가지 다른 프롬프트 설정
 STYLE_PROMPTS = [

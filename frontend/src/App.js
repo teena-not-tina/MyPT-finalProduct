@@ -1,14 +1,18 @@
 import React, { useState, createContext, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import { LogIn, Eye, EyeOff, LogOut, UserPlus, User } from 'lucide-react';
+// 로그인, 대시보드 페이지
 import DashboardPage from './pages/Home/DashboardPage';
 import LoginPage from './pages/Auth/LoginPage';
 import RegisterPage from './pages/Auth/SignupPage';
+// 식단 관련 페이지
 import IngredientInputPage from './pages/Diet/IngredientInputPage';
 import MenuRecommendationPage from './pages/Diet/MenuRecommendationPage'; 
+// 운동 관련 페이지
 import ExerciseCameraPage from './pages/Routine/ExerciseCameraPage';
 import RoutineDetailPage from './pages/Routine/RoutineDetailPage';
 import RoutineOverviewPage from './pages/Routine/RoutineOverviewPage';
+// AI 관련 페이지
 import ChatbotPage from './pages/AI/ChatbotPage';
 import ChatbotAvatarPage from './pages/AI/AvatarProgressPage';
 // CV

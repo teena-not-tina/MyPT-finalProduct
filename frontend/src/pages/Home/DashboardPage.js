@@ -46,38 +46,50 @@ const UserDashboard = () => {
 
   let alertShown = false;
 
-// 2. fetchWithAuth 함수 수정 - alertShown 전역변수 제거하고 로직 개선
 const fetchWithAuth = async (url, options = {}) => {
   const token = getAuthToken();
+  const userId = getUserId();
+  
+  console.log('=== fetchWithAuth 디버깅 ===');
+  console.log('저장된 토큰:', token);
+  console.log('사용자 ID:', userId);
+  console.log('요청 URL:', url);
+  
   if (!token) {
     setAuthError(true);
     throw new Error('No authentication token found');
   }
   
-  // GET 요청이면 Content-Type 헤더 제거
-  const isGet = !options.method || options.method.toUpperCase() === 'GET';
   const headers = {
     'Authorization': `Bearer ${token}`,
-    ...(isGet ? {} : { 'Content-Type': 'application/json' }),
+    ...((!options.method || options.method.toUpperCase() === 'GET') ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
+
+  console.log('요청 헤더:', headers);
 
   const response = await fetch(url, {
     ...options,
     headers,
   });
 
-  // if (!response.ok) {
-  //   if (response.status === 401) {
-  //     // 토큰이 만료되었거나 유효하지 않음
-  //     sessionStorage.removeItem('access_token');
-  //     sessionStorage.removeItem('user_id');
-  //     sessionStorage.removeItem('token_type');
-  //     setAuthError(true);
-  //     throw new Error('Authentication failed');
-  //   }
-  //   throw new Error(`HTTP error! status: ${response.status}`);
-  // }
+  console.log('응답 상태:', response.status);
+  console.log('응답 헤더:', response.headers);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.log('에러 응답:', errorText);
+    
+    if (response.status === 401) {
+      console.error('401 에러 발생');
+      sessionStorage.removeItem('access_token');
+      sessionStorage.removeItem('user_id');
+      sessionStorage.removeItem('token_type');
+      setAuthError(true);
+      throw new Error('Authentication failed');
+    }
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
 
   return response.json();
 };
@@ -194,7 +206,8 @@ const fetchWithAuth = async (url, options = {}) => {
       const response = await fetch('http://localhost:8000/upload-user-image', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          // 'Authorization': `Bearer ${token}`,
+          'Authorization': 'Bearer ' + token
         },
         body: formData,
       });

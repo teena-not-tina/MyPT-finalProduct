@@ -35,6 +35,11 @@ export default function LoginPage() {
           access_token: data.access_token ? '있음' : '없음',
           user_id: data.user_id
         });
+          // 디버깅 로그 추가
+        console.log('로그인 응답 데이터:', data);
+        console.log('저장된 토큰:', data.access_token);
+        console.log('토큰 타입:', data.token_type);
+        console.log('사용자 ID:', data.user_id);  
 
         // 대시보드로 이동
         setTimeout(() => {

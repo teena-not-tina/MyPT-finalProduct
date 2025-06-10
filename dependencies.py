@@ -7,6 +7,12 @@ from mongodb import get_database
 from models import UserInDB, TokenData
 from utils import decode_token
 import random
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 

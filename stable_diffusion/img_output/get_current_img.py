@@ -1,14 +1,16 @@
 from fastapi import APIRouter
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 import base64
 from typing import Optional
 import os
+import jwt
 from dotenv import load_dotenv
 from urllib.parse import unquote
 import bson
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 import logging
 
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 router = APIRouter()
+security = HTTPBearer()
 
 # MongoDB 연결 설정
 MONGODB_URL = os.getenv("MONGODB_URL")
@@ -30,6 +33,7 @@ client = None
 db_user_image = None
 db_user_stats = None
 
+
 # Character 값과 Tag 매핑
 CHARACTER_TAG_MAPPING = {
     1: "very fat",
@@ -40,6 +44,10 @@ CHARACTER_TAG_MAPPING = {
     6: "muscular",
     7: "very muscular"
 }
+
+
+
+
 
 async def get_database_connection():
     """MongoDB 연결을 초기화하고 반환"""
@@ -228,6 +236,57 @@ async def get_user_character_info(user_id: str):
     except Exception as e:
         logger.error(f"캐릭터 정보 조회 오류: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# @router.get("/api/user/profile")
+# async def get_user_profile(user_id: int = Depends(verify_token)):
+#     """사용자 프로필 정보 조회"""
+#     try:
+#         db_user_image, db_user_stats = await get_database_connection()
+#         # users 컬렉션으로 명확히 지정
+#         users_collection = db_user_stats.users
+
+#         # 사용자의 모든 생성된 이미지 수 조회
+#         total_images = await users_collection.count_documents({"user_id": user_id})
+        
+#         # 가장 최근 생성 날짜 조회
+#         latest_creation = await users_collection.find_one(
+#             {"user_id": user_id},
+#             sort=[("created_at", -1)]
+#         )
+        
+#         return {
+#             "user_id": user_id,
+#             "total_images": total_images,
+#             "latest_creation": latest_creation.get("created_at") if latest_creation else None
+#         }
+        
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+
+# @router.get("/api/user/profile")
+# async def get_user_profile(user_id: int = Depends(verify_token)):
+#     """사용자 프로필 정보 조회"""
+#     try:
+#         # 사용자의 모든 생성된 이미지 수 조회
+#         total_images = await db_user_stats.count_documents({"user_id": user_id})
+        
+#         # 가장 최근 생성 날짜 조회
+#         latest_creation = await db_user_stats.find_one(
+#             {"user_id": user_id},
+#             sort=[("created_at", -1)]
+#         )
+        
+#         return {
+#             "user_id": user_id,
+#             "total_images": total_images,
+#             "latest_creation": latest_creation.get("created_at") if latest_creation else None
+#         }
+        
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 # if __name__ == "__main__":
 #     import uvicorn
