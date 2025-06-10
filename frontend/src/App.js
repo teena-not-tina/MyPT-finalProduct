@@ -9,14 +9,15 @@ import RegisterPage from './pages/Auth/SignupPage';
 import IngredientInputPage from './pages/Diet/IngredientInputPage';
 import MenuRecommendationPage from './pages/Diet/MenuRecommendationPage'; 
 // 운동 관련 페이지
+import InbodyFormPage from './pages/Onboarding/InbodyFormPage';
 import ExerciseCameraPage from './pages/Routine/ExerciseCameraPage';
 import RoutineDetailPage from './pages/Routine/RoutineDetailPage';
 import RoutineOverviewPage from './pages/Routine/RoutineOverviewPage';
-// AI 관련 페이지
+// 챗봇 관련 페이지
 import ChatbotPage from './pages/AI/ChatbotPage';
 import ChatbotAvatarPage from './pages/AI/AvatarProgressPage';
 // CV
-import MainPage from './pages/CV/MainPage';
+import CVMainPage from './pages/CV/MainPage';
 // CVcomponents
 import FoodDetection from './pages/CVcomponents/FoodDetection';
 import ImageUploader from './pages/CVcomponents/ImageUploader';
@@ -140,6 +141,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/inbody" element={<InbodyFormPage />} />
             <Route path="/diet" element={<IngredientInputPage />} />
             <Route path="/diet/recommendation" element={<MenuRecommendationPage />} />
             <Route path="/routine" element={<RoutineOverviewPage />} />
@@ -147,7 +149,7 @@ function App() {
             <Route path="/routine/detail" element={<RoutineDetailPage />} />
             <Route path="/chatbot" element={<ChatbotPage />} />
             <Route path="/chatbot/avatar" element={<ChatbotAvatarPage />} />
-            <Route path="/cv" element={<MainPage />} />
+            <Route path="/cv" element={<CVMainPage />} />
             <Route path="/food-detection" element={<FoodDetection />} />
             <Route path="/image-uploader" element={<ImageUploader onImagesSelected={handleImagesSelected} />} />
             <Route path="/fridge-manager" element={<FridgeManager userId={userId} ingredients={ingredients} onIngredientsChange={onIngredientsChange} />} />

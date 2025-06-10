@@ -14,9 +14,18 @@ function Header({ title }) {
 function RoutineOverviewPage() {
   // 실제 루틴 데이터가 들어올 자리 (나중에 백엔드에서 가져옴)
   const dummyRoutines = [
-    { id: '1', name: '전신 근력 운동 - 초급', description: '초보자를 위한 전신 운동 루틴', days: 3 },
-    { id: '2', name: '상체 강화 운동 - 중급', description: '가슴, 등, 어깨 위주의 루틴', days: 2 },
-    { id: '3', name: '하체 집중 운동 - 고급', description: '강도 높은 하체 루틴', days: 1 },
+    { id: '1', 
+      name: '전신 근력 운동 - 초급', 
+      description: '초보자를 위한 전신 운동 루틴', 
+      days: 3 },
+    { id: '2', 
+      name: '상체 강화 운동 - 중급', 
+      description: '가슴, 등, 어깨 위주의 루틴', 
+      days: 2 },
+    { id: '3', 
+      name: '하체 집중 운동 - 고급', 
+      description: '강도 높은 하체 루틴',
+      days: 1 },
   ];
 
   const handleAddRoutine = () => {
@@ -57,9 +66,9 @@ function RoutineOverviewPage() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">{routine.name}</h3>
                     <p className="text-gray-600 mb-3">{routine.description}</p>
                     <div className="flex items-center space-x-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {/* <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         주 {routine.days}회
-                      </span>
+                      </span> */}
                     </div>
                   </div>
                   

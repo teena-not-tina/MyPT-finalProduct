@@ -51,7 +51,7 @@ function IngredientInputPage() {
             </button>
           </form>
           
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+          {/* <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
             <p className="text-sm text-blue-700 text-center space-x-4">
               <span className="inline-flex items-center">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -69,7 +69,7 @@ function IngredientInputPage() {
                 기능은 나중에 추가됩니다.
               </span>
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

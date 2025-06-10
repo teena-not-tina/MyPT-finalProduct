@@ -1,18 +1,87 @@
 // src/pages/AI/AvatarProgressPage.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../Shared/Header'; // 헤더 임포트
 
 function AvatarProgressPage() {
-  // 실제로는 Zustand 스토어 또는 백엔드에서 사용자 및 아바타 정보를 가져올 것입니다.
-  const dummyUserData = {
-    userName: '김헬린',
-    avatarImage: '/images/default_avatar.png', // 실제 아바타 이미지 경로 (나중에 추가)
-    currentLevel: 5,
-    progressPercentage: 60, // 다음 레벨까지의 진행도
-    routineCompleted: 15, // 완료된 루틴 수
-    dietRecorded: 25, // 기록된 식단 수
-    lastActive: '2025-06-02',
+  const [avatarImage, setAvatarImage] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // 사용자 프로필 상태 추가
+  const [userProfile, setUserProfile] = useState(null);
+
+  const getAuthToken = () => sessionStorage.getItem('access_token');
+  const getUserId = () => sessionStorage.getItem('user_id');
+
+  // 사용자 프로필 정보 로드
+  const loadUserProfile = async () => {
+    try {
+      const userId = getUserId();
+      const token = getAuthToken();
+      if (!userId || !token) throw new Error('인증 정보가 없습니다.');
+
+      const response = await fetch(`http://localhost:8000/api/user/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('프로필 정보를 불러오는데 실패했습니다.');
+      const data = await response.json();
+      setUserProfile(data);
+    } catch (err) {
+      setError(err.message);
+    }
   };
+
+  // 이미지 데이터 로드
+  const loadAvatarImage = async () => {
+    try {
+      setLoading(true);
+      const userId = getUserId();
+      const token = getAuthToken();
+      if (!userId || !token) throw new Error('인증 정보가 없습니다.');
+
+      const response = await fetch(`http://localhost:8000/user/${userId}/image`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('이미지를 불러오는데 실패했습니다.');
+      const imageData = await response.json();
+      setAvatarImage(imageData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAvatarImage();
+    loadUserProfile();
+  }, []);
+
+  // progress(1~4)를 퍼센트로 변환하는 함수
+  const getProgressPercent = (progress) => {
+    if (!progress) return 0;
+    // 1~4 → 25, 50, 75, 100
+    return Math.min(100, Math.max(0, Math.round((progress / 4) * 100)));
+  };
+
+  // const dummyUserData = {
+  //   userName: '김헬린',
+  //   avatarImage: '/images/default_avatar.png', // 실제 아바타 이미지 경로 (나중에 추가)
+  //   currentLevel: 5,
+  //   progressPercentage: 60, // 다음 레벨까지의 진행도
+  //   routineCompleted: 15, // 완료된 루틴 수
+  //   dietRecorded: 25, // 기록된 식단 수
+  //   lastActive: '2025-06-02',
+  // };
+
+  // 프로필 정보가 없으면 로딩 표시
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="text-gray-500">사용자 정보를 불러오는 중...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -22,7 +91,7 @@ function AvatarProgressPage() {
         {/* 인사말 */}
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            안녕하세요, {dummyUserData.userName}님!
+            안녕하세요, {userProfile.email}님!
           </h2>
           <p className="text-gray-600">오늘도 목표를 향해 달려가고 있어요</p>
         </div>
@@ -30,9 +99,15 @@ function AvatarProgressPage() {
         {/* 아바타 이미지 영역 */}
         <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
           <div className="mb-6">
-            {dummyUserData.avatarImage ? (
+            {loading ? (
+              <div className="w-24 h-24 mx-auto rounded-full bg-gray-200 animate-pulse" />
+            ) : error ? (
+              <div className="w-24 h-24 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                <span className="text-red-500">Error</span>
+              </div>
+            ) : avatarImage?.image_data ? (
               <img 
-                src={dummyUserData.avatarImage} 
+                src={`data:${avatarImage.content_type};base64,${avatarImage.image_data}`}
                 alt="My Avatar" 
                 className="w-24 h-24 mx-auto rounded-full object-cover border-4 border-blue-200" 
               />
@@ -45,23 +120,24 @@ function AvatarProgressPage() {
             )}
           </div>
           <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-full font-semibold">
-            <span className="text-sm">Lv. {dummyUserData.currentLevel}</span>
+            <span className="text-sm">Lv. {userProfile.level ?? 1}</span>
           </div>
         </div>
+
 
         {/* 진행도 바 */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex justify-between items-center mb-3">
             <h3 className="font-semibold text-gray-900">레벨 진행도</h3>
-            <span className="text-sm text-gray-600">{dummyUserData.progressPercentage}%</span>
+            <span className="text-sm text-gray-600">{getProgressPercent(userProfile.progress)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
             <div 
               className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500" 
-              style={{ width: `${dummyUserData.progressPercentage}%` }}
+              style={{ width: `${getProgressPercent(userProfile.progress)}%` }}
             ></div>
           </div>
-          <p className="text-sm text-gray-600">다음 레벨까지 {100 - dummyUserData.progressPercentage}% 남았어요!</p>
+          다음 레벨까지 {100 - getProgressPercent(userProfile.progress)}% 남았어요!
         </div>
 
         {/* 핵심 정보 요약 */}
@@ -75,16 +151,16 @@ function AvatarProgressPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900">운동 루틴</h3>
-                <p className="text-sm text-gray-600">이번 주 3회 완료</p>
+                <p className="text-sm text-gray-600">이번 주 {userProfile.progress ?? 0}회 완료</p>
               </div>
             </div>
-            <div className="text-2xl font-bold text-gray-900 mb-1">
-              {dummyUserData.routineCompleted}회
+            {/* <div className="text-2xl font-bold text-gray-900 mb-1">
+              {userProfile.progress ?? 0}회
             </div>
-            <p className="text-sm text-gray-600">총 완료</p>
+            <p className="text-sm text-gray-600">총 완료</p> */}
           </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
+          {/* 추가 정보 섹션 -> 식단 기록 횟수를 데이터 베이스에서 조회 -> 나중에 추가 */}
+          {/* <div className="bg-white rounded-2xl p-6 shadow-sm">
             <div className="flex items-center mb-4">
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mr-4">
                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,11 +176,11 @@ function AvatarProgressPage() {
               {dummyUserData.dietRecorded}회
             </div>
             <p className="text-sm text-gray-600">총 기록</p>
-          </div>
+          </div> */}
         </div>
 
-        {/* 추가 정보 섹션 */}
-        <div className="space-y-4">
+        {/* 추가 정보 섹션 -> 필요한 데이터 컬렉션이 없음*/}
+        {/* <div className="space-y-4">
           <div className="bg-white rounded-2xl p-6 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <svg className="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -136,7 +212,7 @@ function AvatarProgressPage() {
               </p>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

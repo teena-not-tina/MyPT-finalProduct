@@ -582,24 +582,20 @@ async def generate_images(request: GenerationRequest, user_id: int = Depends(ver
 async def get_user_profile(user_id: int = Depends(verify_token)):
     """사용자 프로필 정보 조회"""
     try:
-        # 사용자의 모든 생성된 이미지 수 조회
-        total_images = await collection.count_documents({"user_id": user_id})
-        
-        # 가장 최근 생성 날짜 조회
-        latest_creation = await collection.find_one(
-            {"user_id": user_id},
-            sort=[("created_at", -1)]
-        )
-        
+        # user_id로 해당 사용자 문서 찾기
+        user_doc = await db.users.find_one({"user_id": user_id})
+        if not user_doc:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # level과 progress를 반환
         return {
             "user_id": user_id,
-            "total_images": total_images,
-            "latest_creation": latest_creation.get("created_at") if latest_creation else None
+            "level": user_doc.get("level", 1),
+            "progress": user_doc.get("progress", 0),
+            "email": user_doc.get("email", "")
         }
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
     
 # # 로그인 엔드포인트 (임시)
 # @router.post("/api/auth/login")

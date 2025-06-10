@@ -6,6 +6,7 @@ import Header from '../Shared/Header';
 function MenuRecommendationPage() {
   const navigate = useNavigate();
 
+  // 추천 식단 데이터 (예시)
   const recommendedMenus = [
     {
       id: 1,
@@ -30,7 +31,8 @@ function MenuRecommendationPage() {
       calories: 400,
       macros: { protein: 25, carbs: 50, fat: 12 },
       ingredients: ['두부 1/2모', '현미밥 1공기', '당근, 양파, 피망', '간장, 참기름'],
-    },
+    }
+
   ];
 
   const handleSelectMenu = (menuName) => {
