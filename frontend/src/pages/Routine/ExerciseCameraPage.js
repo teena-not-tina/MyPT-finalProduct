@@ -24,7 +24,7 @@ function ExerciseCameraPage() {
         </div>
         
         {/* 카메라 피드 영역 */}
-        <div className="bg-gray-900 rounded-lg aspect-video flex flex-col items-center justify-center text-white space-y-4 shadow-lg">
+        <div className="bg-gray-900 rounded-lg aspect-video w-full max-w-2xl mx-auto flex flex-col items-center justify-center text-white space-y-4 shadow-lg">
           <div className="text-center space-y-2">
             <i className="fas fa-camera text-4xl text-gray-400"></i>
             <p className="text-lg">카메라 영상이 여기에 표시됩니다.</p>

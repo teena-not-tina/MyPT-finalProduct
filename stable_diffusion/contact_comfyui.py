@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import aiohttp
 import aiofiles
 from PIL import Image
+from typing import Union 
 import io
 import os
 from datetime import datetime
@@ -376,9 +377,11 @@ class ComfyUIClient:
 comfy_client = ComfyUIClient(COMFYUI_URL)
 
 # 파일명을 안전하게 변환하는 함수 추가
-def sanitize_filename(filename: str) -> str:
+def sanitize_filename(filename: Union[str, int]) -> str:
     """파일명에서 특수문자를 제거하고 안전한 파일명으로 변환"""
-    # 이메일 주소의 @ 기호와 기타 특수문자를 언더스코어로 변경
+    # int나 다른 타입을 문자열로 변환
+    filename = str(filename)
+    # 특수문자를 언더스코어로 변경
     safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
     # 연속된 언더스코어를 하나로 축약
     safe_filename = re.sub(r'_+', '_', safe_filename)
@@ -409,7 +412,8 @@ async def upload_user_image(file: UploadFile = File(...), user_id: int = Depends
         raise HTTPException(status_code=400, detail="Only image files are allowed")
     
     file_extension = file.filename.split('.')[-1]
-    safe_user_id = sanitize_filename(user_id)
+    # user_id를 문자열로 변환하고 sanitize
+    safe_user_id = sanitize_filename(str(user_id))
     filename = f"{safe_user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
     file_path = os.path.join(UPLOAD_DIR, filename)
     
