@@ -20,7 +20,7 @@ function AvatarProgressPage() {
       const token = getAuthToken();
       if (!userId || !token) throw new Error('인증 정보가 없습니다.');
 
-      const response = await fetch(`http://localhost:8000/api/user/profile`, {
+      const response = await fetch(`http://0.0.0.0:8000/api/user/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('프로필 정보를 불러오는데 실패했습니다.');
@@ -39,7 +39,7 @@ function AvatarProgressPage() {
       const token = getAuthToken();
       if (!userId || !token) throw new Error('인증 정보가 없습니다.');
 
-      const response = await fetch(`http://localhost:8000/user/${userId}/image`, {
+      const response = await fetch(`http://0.0.0.0:8000/user/${userId}/image`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('이미지를 불러오는데 실패했습니다.');

@@ -14,9 +14,9 @@ class WorkoutService {
     }
   }
 
-  async getRoutineByDay(day) {
+  async getRoutineByDay(userId, day) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/workout/routines/${day}`);
+      const response = await fetch(`${API_BASE_URL}/api/workout/routines/${day}?user_id=${userId}`);
       if (!response.ok) throw new Error(`Failed to fetch routine for day ${day}`);
       return await response.json();
     } catch (error) {
@@ -34,7 +34,6 @@ class WorkoutService {
     return await response.json();
   }
 
-  // workoutService.js
   async completeRoutine(day, userId) {
     const response = await fetch(`${API_BASE_URL}/api/workout/routines/${day}/complete?user_id=${userId}`, {
       method: 'POST'
@@ -43,10 +42,10 @@ class WorkoutService {
     return await response.json();
   }
 
-  async updateSet(day, exerciseId, setId, updateData) {
+  async updateSet(day, exerciseId, setId, updateData, userId) {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets/${setId}`,
+        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets/${setId}?user_id=${userId}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -61,10 +60,10 @@ class WorkoutService {
     }
   }
 
-  async addSet(day, exerciseId) {
+  async addSet(day, exerciseId, userId) {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets`,
+        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets?user_id=${userId}`,
         { method: 'POST' }
       );
       if (!response.ok) throw new Error('Failed to add set');
@@ -75,10 +74,10 @@ class WorkoutService {
     }
   }
 
-  async deleteSet(day, exerciseId, setId) {
+  async deleteSet(day, exerciseId, setId, userId) {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets/${setId}`,
+        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets/${setId}?user_id=${userId}`,
         { method: 'DELETE' }
       );
       if (!response.ok) throw new Error('Failed to delete set');
@@ -89,10 +88,10 @@ class WorkoutService {
     }
   }
 
-  async deleteExercise(day, exerciseId) {
+  async deleteExercise(day, exerciseId, userId) {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}`,
+        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}?user_id=${userId}`,
         { method: 'DELETE' }
       );
       if (!response.ok) throw new Error('Failed to delete exercise');
@@ -103,10 +102,10 @@ class WorkoutService {
     }
   }
 
-  async toggleSetCompletion(day, exerciseId, setId) {
+  async toggleSetCompletion(day, exerciseId, setId, userId) {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/complete-set/${setId}`,
+        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/complete-set/${setId}?user_id=${userId}`,
         { method: 'POST' }
       );
       if (!response.ok) throw new Error('Failed to toggle set completion');
@@ -131,6 +130,27 @@ class WorkoutService {
       return await response.json();
     } catch (error) {
       console.error('Error triggering posture analysis:', error);
+      throw error;
+    }
+  }
+
+  async markExerciseComplete(day, exerciseName, userId) {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/workout/routines/${day}/exercises/complete`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            exercise_name: exerciseName,
+            user_id: userId 
+          })
+        }
+      );
+      if (!response.ok) throw new Error('Failed to mark exercise complete');
+      return await response.json();
+    } catch (error) {
+      console.error('Error marking exercise complete:', error);
       throw error;
     }
   }

@@ -30,16 +30,18 @@ const RoutineOverviewPage = () => {
       setRoutines(data);
       setLoading(false);
     } catch (err) {
-      setError('운동 루틴을 불러오는데 실패했습니다.');
+      setError('운동 루틴이 아직 없거나 오류가 발생했습니다.');
       setLoading(false);
       console.error('Failed to fetch routines:', err);
     }
   };
 
   const handleViewRoutine = (day) => {
-    console.log(`Navigate to routine detail: /routine/detail/${day}`);
-    // TODO: Uncomment when routing is set up
-    navigate(`/routine/detail/${day}`);
+    console.log(`Navigate to routine detail with day: ${day}`);
+    // Navigate to the RoutineDetailPage passing day through navigation state
+    navigate('/routine/detail', {
+      state: { day: day }
+    });
   };
 
   if (loading) {
@@ -75,13 +77,13 @@ const RoutineOverviewPage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 13.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-red-800 mb-2">오류가 발생했습니다</h3>
+            <h3 className="text-lg font-medium text-red-800 mb-2">아직 등록된 운동 루틴이 없습니다.</h3>
             <p className="text-red-600 mb-4">{error}</p>
             <button 
               onClick={fetchRoutines}
               className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
             >
-              다시 시도
+              다시 불러오기
             </button>
           </div>
         </div>

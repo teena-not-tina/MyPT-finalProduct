@@ -106,9 +106,9 @@ const fetchWithAuth = async (url, options = {}) => {
       
       // 사용자 프로필과 이미지 데이터를 병렬로 가져오기
       const [profile, imageResponse] = await Promise.all([
-        fetchWithAuth('http://localhost:8000/api/user/profile'),
+        fetchWithAuth('http://192.168.0.21:8000/api/user/profile'),
         // get_current_img.py의 get_user_image 엔드포인트 사용
-        fetchWithAuth(`http://localhost:8000/user/${userId}/image`).catch(() => null)
+        fetchWithAuth(`http://192.168.0.21:8000/user/${userId}/image`).catch(() => null)
       ]);
       
       // 대시보드 데이터 구성
@@ -203,7 +203,7 @@ const fetchWithAuth = async (url, options = {}) => {
       formData.append('file', selectedFile);
 
       const token = getAuthToken();
-      const response = await fetch('http://localhost:8000/upload-user-image', {
+      const response = await fetch('http://192.168.0.21:8000/upload-user-image', {
         method: 'POST',
         headers: {
           // 'Authorization': `Bearer ${token}`,
@@ -264,7 +264,7 @@ const fetchWithAuth = async (url, options = {}) => {
         });
       }, 2000);
 
-      const response = await fetchWithAuth('http://localhost:8000/generate-images', {
+      const response = await fetchWithAuth('http://192.168.0.21:8000/generate-images', {
         method: 'POST',
         body: JSON.stringify({ base_image_name: "proteengrayal.png" }),
       });

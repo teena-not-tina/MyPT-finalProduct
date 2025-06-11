@@ -1,17 +1,17 @@
 // frontend/src/pages/Routine/ExerciseCameraPage.js
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Camera, CameraOff, RotateCcw, ArrowLeft, Wifi, WifiOff, HelpCircle, X } from 'lucide-react';
-// import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 // import workoutService from '../../services/workoutService';
 
 const ExerciseCameraPage = () => {
-  // const navigate = useNavigate();
-  // const { day, exerciseName } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   
-  // For testing - replace with actual props/params
-  const exerciseName = "푸시업"; // This will come from useParams() or props
+  // Get day and exercise from navigation state
+  const dayNumber = location.state?.day || 1;
+  const decodedExerciseName = location.state?.exerciseName || "푸시업";
   const targetReps = 10; // This will come from backend or props
-  const day = 1; // This will come from useParams()
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -129,7 +129,7 @@ const ExerciseCameraPage = () => {
         
         const initMessage = {
           type: 'init',
-          exercise: exerciseName,
+          exercise: decodedExerciseName,
           targetReps: targetReps
         };
         
@@ -213,7 +213,7 @@ const ExerciseCameraPage = () => {
         wsRef.current.close(1000, 'Component unmounting');
       }
     };
-  }, [isCameraOn, exerciseName, targetReps]);
+  }, [isCameraOn, decodedExerciseName, targetReps]);
   
   // 포즈 결과 처리
   const onPoseResults = useCallback((results) => {
@@ -336,11 +336,11 @@ const ExerciseCameraPage = () => {
     try {
       debugLog('운동 완료 처리 시작');
       // TODO: Uncomment when workoutService is available
-      // await workoutService.markExerciseComplete(day, exerciseName, userId);
+      // await workoutService.markExerciseComplete(dayNumber, decodedExerciseName, userId);
       
       // Show completion message
       setTimeout(() => {
-        alert(`${exerciseName} 완료! 수고하셨습니다.`);
+        alert(`${decodedExerciseName} 완료! 수고하셨습니다.`);
         handleBack();
       }, 1000);
       
@@ -353,11 +353,10 @@ const ExerciseCameraPage = () => {
   // 뒤로가기
   const handleBack = () => {
     debugLog('뒤로가기 실행');
-    // TODO: Uncomment when navigation is set up
-    // navigate(`/routine/${day}`);
-    
-    // For testing
-    console.log(`뒤로가기: /routine/${day}`);
+    // Navigate back to the routine detail page with day info
+    navigate('/routine/detail', {
+      state: { day: dayNumber }
+    });
   };
   
   // 디버그 정보 지우기
@@ -387,7 +386,7 @@ const ExerciseCameraPage = () => {
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-900 truncate">{exerciseName} 자세 분석</h1>
+            <h1 className="text-lg font-semibold text-gray-900 truncate">{decodedExerciseName} 자세 분석</h1>
           </div>
           
           <div className="flex items-center gap-2">
@@ -456,7 +455,7 @@ const ExerciseCameraPage = () => {
               
               <div className="flex items-center space-x-2">
                 <span className="text-lg font-semibold text-gray-900">
-                  현재 운동: <span className="text-blue-600">{exerciseName}</span>
+                  현재 운동: <span className="text-blue-600">{decodedExerciseName}</span>
                 </span>
               </div>
               

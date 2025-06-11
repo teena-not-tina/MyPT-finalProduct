@@ -1,7 +1,7 @@
 // frontend/src/pages/Routine/RoutineDetailPage.js
 import React, { useState, useEffect } from 'react';
 import { Camera, ArrowLeft, Info, MoreVertical, Plus, Trash2, Edit2, Check } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import workoutService from '../../service/workoutService';
 
 // Exercise enum for supported exercises
@@ -21,30 +21,39 @@ const isExerciseSupported = (exerciseName) => {
 
 const RoutineDetailPage = () => {
   const navigate = useNavigate();
-  const { day } = useParams();
+  const location = useLocation();
   
-  // For testing - replace with actual params
-  //const day = 1; // This will come from useParams()
+  // Get day from navigation state, fallback to URL params, then default to 1
+  const selectedDay = location.state?.day || new URLSearchParams(location.search).get('day') || 1;
+  const dayNumber = parseInt(selectedDay);
   
   const [routine, setRoutine] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editingExercise, setEditingExercise] = useState(null);
   const [editingSet, setEditingSet] = useState(null);
+  const [noRoutineSelected, setNoRoutineSelected] = useState(false);
   
   const userId = 1; // Replace with actual user context
 
   useEffect(() => {
+    // Check if we have a valid day selected
+    if (!dayNumber || isNaN(dayNumber)) {
+      setNoRoutineSelected(true);
+      setLoading(false);
+      return;
+    }
+    
     fetchRoutineDetail();
-  }, [day]);
+  }, [dayNumber, userId]);
 
   const fetchRoutineDetail = async () => {
     try {
       setLoading(true);
       setError(null);
+      setNoRoutineSelected(false);
       
-      // TODO: Uncomment when workoutService is available
-      const data = await workoutService.getRoutineByDay(day);
+      const data = await workoutService.getRoutineByDay(userId, dayNumber);
       
       setRoutine(data);
       setLoading(false);
@@ -57,7 +66,6 @@ const RoutineDetailPage = () => {
 
   const handleBack = () => {
     console.log('Navigate back to routine overview');
-    // TODO: Uncomment when routing is set up
     navigate('/routine');
   };
 
@@ -68,12 +76,14 @@ const RoutineDetailPage = () => {
     }
     
     try {
-      // TODO: Uncomment when workoutService is available
-      // await workoutService.triggerPostureAnalysis(exerciseName);
-      
-      console.log(`Navigate to ExerciseCameraPage: /routine/${day}/exercise/${exerciseName}`);
-      // TODO: Uncomment when routing is set up
-      //navigate(`/routine/${day}/exercise/${exerciseName}`);
+      console.log(`Navigate to ExerciseCameraPage with day: ${dayNumber}, exercise: ${exerciseName}`);
+      // Pass both day and exercise info through navigation state
+      navigate('/routine/camera', {
+        state: {
+          day: dayNumber,
+          exerciseName: exerciseName
+        }
+      });
     } catch (err) {
       console.error('Failed to trigger posture analysis:', err);
     }
@@ -81,14 +91,12 @@ const RoutineDetailPage = () => {
 
   const handleInfoClick = (exerciseName) => {
     console.log(`Show exercise info for: ${exerciseName}`);
-    // TODO: Implement exercise information modal/page
     alert(`${exerciseName} 운동 방법 설명 기능은 곧 추가될 예정입니다.`);
   };
 
   const handleCompleteSet = async (exerciseId, setId) => {
     try {
-      // TODO: Uncomment when workoutService is available
-      // await workoutService.toggleSetCompletion(day, exerciseId, setId);
+      await workoutService.toggleSetCompletion(dayNumber, exerciseId, setId, userId);
       
       // Update local state optimistically
       setRoutine(prev => ({
@@ -115,9 +123,8 @@ const RoutineDetailPage = () => {
 
   const handleEditSet = async (exerciseId, setId, field, value) => {
     try {
-      // TODO: Uncomment when workoutService is available
-      // const updateData = { [field]: value };
-      // await workoutService.updateSet(day, exerciseId, setId, updateData);
+      const updateData = { [field]: value };
+      await workoutService.updateSet(dayNumber, exerciseId, setId, updateData, userId);
       
       // Update local state
       setRoutine(prev => ({
@@ -144,12 +151,8 @@ const RoutineDetailPage = () => {
 
   const handleAddSet = async (exerciseId) => {
     try {
-      // TODO: Uncomment when workoutService is available
-      // await workoutService.addSet(day, exerciseId);
-      // fetchRoutineDetail(); // Refresh to get proper IDs from backend
-      
-      // For testing - add mock set
-      console.log(`Add set to exercise ${exerciseId}`);
+      await workoutService.addSet(dayNumber, exerciseId, userId);
+      fetchRoutineDetail(); // Refresh to get proper IDs from backend
     } catch (err) {
       console.error('Failed to add set:', err);
     }
@@ -157,8 +160,7 @@ const RoutineDetailPage = () => {
 
   const handleDeleteSet = async (exerciseId, setId) => {
     try {
-      // TODO: Uncomment when workoutService is available
-      // await workoutService.deleteSet(day, exerciseId, setId);
+      await workoutService.deleteSet(dayNumber, exerciseId, setId, userId);
       
       // Update local state
       setRoutine(prev => ({
@@ -180,8 +182,7 @@ const RoutineDetailPage = () => {
 
   const handleDeleteExercise = async (exerciseId) => {
     try {
-      // TODO: Uncomment when workoutService is available
-      // await workoutService.deleteExercise(day, exerciseId);
+      await workoutService.deleteExercise(dayNumber, exerciseId, userId);
       
       // Update local state
       setRoutine(prev => ({
@@ -196,18 +197,50 @@ const RoutineDetailPage = () => {
 
   const handleCompleteRoutine = async () => {
     try {
-      // TODO: Uncomment when workoutService is available
-      // const result = await workoutService.completeRoutine(day, userId);
-      // alert(`루틴 완료! 현재 진행도: ${result.progress}, 레벨: ${result.level}`);
-      // await workoutService.resetUserRoutines(userId);
-      // fetchRoutineDetail();
-      
-      // For testing
-      alert('루틴 완료! (테스트 모드)');
+      const result = await workoutService.completeRoutine(dayNumber, userId);
+      if (result.progress ===4 && result.level === 7) {
+        alert(`${result.message}`);
+      }
+      alert(`루틴 완료! 현재 진행도: ${result.progress}, 레벨: ${result.level}`);
+      await workoutService.resetUserRoutines(userId);
+      fetchRoutineDetail();
     } catch (err) {
       alert('아직 완료되지 않은 세트가 있습니다!');
     }
   };
+
+  // Handle case where no routine is selected
+  if (noRoutineSelected) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center px-4 py-3 max-w-screen-xl mx-auto">
+            <button onClick={handleBack} className="mr-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">운동 상세</h1>
+          </div>
+        </header>
+        <div className="max-w-screen-xl mx-auto px-4 py-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">운동 루틴을 선택해주세요</h3>
+            <p className="text-gray-600 mb-6">운동을 시작하려면 먼저 루틴을 선택해야 합니다.</p>
+            <button 
+              onClick={handleBack}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
+            >
+              루틴 선택하러 가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

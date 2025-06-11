@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+import socket
+from fastapi import Request
 
 load_dotenv
 
@@ -26,7 +28,7 @@ messages_list: dict[int, MsgPayload] = {}
 # CORS 설정 (React 앱에서 접근 가능하도록)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], 
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,8 +40,26 @@ app.include_router(get_current_img.router, prefix="")
 app.include_router(routes.router, prefix="")
 
 @app.get("/")
-def root() -> dict[str, str]:
-    return {"message": "Hello"}
+def root(request: Request) -> dict[str, str]:
+    print(f"🌐 / 요청 from {request.client.host}")
+    return {"message": "Hello", "client_ip": request.client.host}
+
+@app.on_event("startup")
+async def startup_event():
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    print(f"🚀 FastAPI 서버가 시작되었습니다.")
+    print(f"  - 호스트명: {hostname}")
+    print(f"  - 로컬 IP: {local_ip}")
+    print(f"  - 환경변수 MONGODB_URL: {MONGO_URL}")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"🔔 요청: {request.method} {request.url} (from {request.client.host})")
+    response = await call_next(request)
+    print(f"🔔 응답: {response.status_code} {request.url}")
+    return response
 
 
 # About page route
