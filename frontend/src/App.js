@@ -152,129 +152,134 @@ function Navigation() {
     </nav>
   );
 }
+// // 챗봇 오버레이 컴포넌트
+//------------------------------------------------------------------------------
+// function OverlayChatbot() {
+//   const { isChatbotOpen, closeChatbot } = useChatbot();
+//   const { isAuthenticated } = useAuth();
 
-function OverlayChatbot() {
-  const { isChatbotOpen, closeChatbot } = useChatbot();
-  const { isAuthenticated } = useAuth();
+//   const [messages, setMessages] = useState([
+//     { id: 1, sender: 'bot', text: '안녕하세요! 무엇을 도와드릴까요?', type: 'text' },
+//     { id: 2, sender: 'bot', text: '운동 루틴이나 식단에 대해 궁금한 점이 있으신가요?', type: 'text' },
+//   ]);
+//   const [inputMessage, setInputMessage] = useState('');
 
-  const [messages, setMessages] = useState([
-    { id: 1, sender: 'bot', text: '안녕하세요! 무엇을 도와드릴까요?', type: 'text' },
-    { id: 2, sender: 'bot', text: '운동 루틴이나 식단에 대해 궁금한 점이 있으신가요?', type: 'text' },
-  ]);
-  const [inputMessage, setInputMessage] = useState('');
+//   const handleSendMessage = (e) => {
+//     e.preventDefault();
+//     if (inputMessage.trim() === '') return;
 
-  const handleSendMessage = (e) => {
-    e.preventDefault();
-    if (inputMessage.trim() === '') return;
+//     const newMessage = {
+//       id: messages.length + 1,
+//       sender: 'user',
+//       text: inputMessage.trim(),
+//       type: 'text'
+//     };
+//     setMessages((prevMessages) => [...prevMessages, newMessage]);
+//     setInputMessage('');
 
-    const newMessage = {
-      id: messages.length + 1,
-      sender: 'user',
-      text: inputMessage.trim(),
-      type: 'text'
-    };
-    setMessages((prevMessages) => [...prevMessages, newMessage]);
-    setInputMessage('');
+//     setTimeout(() => {
+//       const botResponse = {
+//         id: messages.length + 2,
+//         sender: 'bot',
+//         text: `"${newMessage.text}"에 대한 답변을 준비 중입니다. (아직 구현되지 않은 기능입니다.)`,
+//         type: 'text'
+//       };
+//       setMessages((prevMessages) => [...prevMessages, botResponse]);
+//     }, 1000);
+//   };
 
-    setTimeout(() => {
-      const botResponse = {
-        id: messages.length + 2,
-        sender: 'bot',
-        text: `"${newMessage.text}"에 대한 답변을 준비 중입니다. (아직 구현되지 않은 기능입니다.)`,
-        type: 'text'
-      };
-      setMessages((prevMessages) => [...prevMessages, botResponse]);
-    }, 1000);
-  };
+//   // if (!isChatbotOpen) return null;
 
-  // if (!isChatbotOpen) return null;
+//   if (!isAuthenticated ||!isChatbotOpen) {
+//     return null;
+//   }
 
-  if (!isAuthenticated ||!isChatbotOpen) {
-    return null;
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-[600px] h-[700px] flex flex-col max-w-full max-h-full m-4">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-lg font-semibold">상담 챗봇</h3>
-          <button onClick={closeChatbot} className="text-gray-500 hover:text-gray-700 text-xl">
-            ✕
-          </button>
-        </div>
+//   return (
+//     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+//       <div className="bg-white rounded-lg w-[600px] h-[700px] flex flex-col max-w-full max-h-full m-4">
+//         <div className="flex justify-between items-center p-4 border-b">
+//           <h3 className="text-lg font-semibold">상담 챗봇</h3>
+//           <button onClick={closeChatbot} className="text-gray-500 hover:text-gray-700 text-xl">
+//             ✕
+//           </button>
+//         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) => (
-            <div 
-              key={msg.id} 
-              className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div className={`max-w-xs px-4 py-3 rounded-2xl ${
-                msg.sender === 'user' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {msg.sender === 'bot' && (
-                  <div className="flex items-center mb-2">
-                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
-                      <span className="text-xs font-bold text-blue-600">AI</span>
-                    </div>
-                    <span className="text-xs text-gray-500 font-medium">트레이너</span>
-                  </div>
-                )}
-                <p className="text-sm leading-relaxed">{msg.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+//         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+//           {messages.map((msg) => (
+//             <div 
+//               key={msg.id} 
+//               className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+//             >
+//               <div className={`max-w-xs px-4 py-3 rounded-2xl ${
+//                 msg.sender === 'user' 
+//                   ? 'bg-blue-600 text-white' 
+//                   : 'bg-gray-100 text-gray-800'
+//               }`}>
+//                 {msg.sender === 'bot' && (
+//                   <div className="flex items-center mb-2">
+//                     <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mr-2">
+//                       <span className="text-xs font-bold text-blue-600">AI</span>
+//                     </div>
+//                     <span className="text-xs text-gray-500 font-medium">트레이너</span>
+//                   </div>
+//                 )}
+//                 <p className="text-sm leading-relaxed">{msg.text}</p>
+//               </div>
+//             </div>
+//           ))}
+//         </div>
 
-        <div className="p-4 border-t">
-          <form onSubmit={handleSendMessage} className="flex items-end space-x-3">
-            <div className="flex-1">
-              <input
-                type="text"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="메시지를 입력하세요..."
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-              />
-            </div>
-            <button 
-              type="submit" 
-              className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"
-              disabled={!inputMessage.trim()}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
+//         <div className="p-4 border-t">
+//           <form onSubmit={handleSendMessage} className="flex items-end space-x-3">
+//             <div className="flex-1">
+//               <input
+//                 type="text"
+//                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+//                 placeholder="메시지를 입력하세요..."
+//                 value={inputMessage}
+//                 onChange={(e) => setInputMessage(e.target.value)}
+//               />
+//             </div>
+//             <button 
+//               type="submit" 
+//               className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"
+//               disabled={!inputMessage.trim()}
+//             >
+//               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+//               </svg>
+//             </button>
+//           </form>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+//------------------------------------------------------------------------------
 
-function ChatbotButton() {
-  const { openChatbot } = useChatbot();
-  const { isAuthenticated } = useAuth();
+// 챗봇 버튼 컴포넌트
+//-------------------------------------------------------------------------------
+// function ChatbotButton() {
+//   const { openChatbot } = useChatbot();
+//   const { isAuthenticated } = useAuth();
   
-  // 디버깅용 - 콘솔에서 인증 상태 확인
-  console.log('isAuthenticated:', isAuthenticated);
+//   // 디버깅용 - 콘솔에서 인증 상태 확인
+//   console.log('isAuthenticated:', isAuthenticated);
   
-  if (!isAuthenticated) {
-    return null;
-  }
+//   if (!isAuthenticated) {
+//     return null;
+//   }
 
-  return (
-    <button
-      onClick={openChatbot}
-      className="fixed bottom-4 right-4 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 z-40"
-    >
-      💬
-    </button>
-  );
-}
+//   return (
+//     <button
+//       onClick={openChatbot}
+//       className="fixed bottom-4 right-4 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 z-40"
+//     >
+//       💬
+//     </button>
+//   );
+// }
+//-------------------------------------------------------------------------------
 
 // 메인 App 컴포넌트
 function App() {
@@ -295,7 +300,7 @@ function App() {
 
   return (
     <AuthProvider>
-      <ChatbotProvider>  
+      {/* <ChatbotProvider>   */}
         <Router>
           <div className="App min-h-screen bg-gray-50">
             <Navigation />
@@ -318,11 +323,11 @@ function App() {
               <Route path="/fridge-manager" element={<FridgeManager userId={userId} ingredients={ingredients} onIngredientsChange={onIngredientsChange} />} />
             </Routes>
           
-            <ChatbotButton />
-            <OverlayChatbot />
+            {/* <ChatbotButton /> */}
+            {/* <OverlayChatbot /> */}
           </div>
         </Router>
-      </ChatbotProvider>  {/* ChatbotProvider 닫기 */}
+      {/* </ChatbotProvider>  ChatbotProvider 닫기 */}
     </AuthProvider>
   );
 }

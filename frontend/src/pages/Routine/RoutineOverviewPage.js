@@ -2,9 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import workoutService from '../../service/workoutService';
+import ChatbotPage from '../AI/ChatbotPage';
 
 const RoutineOverviewPage = () => {
   const navigate = useNavigate();
+  const [showChatbot, setShowChatbot] = useState(false);
   
   const [routines, setRoutines] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -174,6 +176,32 @@ const RoutineOverviewPage = () => {
           )}
         </div>
       </div>
+
+      {!showChatbot && (
+        <button
+          className="floating-chatbot-btn"
+          onClick={() => setShowChatbot(true)}
+          aria-label="AI 트레이너 열기"
+        >
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" stroke="#fff" strokeWidth="2" fill="#1976d2"/>
+          </svg>
+        </button>
+      )}
+
+      {showChatbot && (
+        <div className="floating-chatbot-full-window">
+          <button
+            className="close-chatbot-btn"
+            onClick={() => setShowChatbot(false)}
+            aria-label="챗봇 닫기"
+          >
+            ×
+          </button>
+          <ChatbotPage />
+        </div>
+      )}
+
     </div>
   );
 };
