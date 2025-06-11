@@ -1,101 +1,281 @@
-import React from 'react';
+// frontend/src/pages/Routine/RoutineDetailPage.js
+import React, { useState, useEffect } from 'react';
+import { Camera, ArrowLeft, Info, MoreVertical, Plus, Trash2, Edit2, Check } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
+import workoutService from '../../service/workoutService';
 
-// Header 컴포넌트 (뒤로가기 버튼 포함)
-function Header({ title, showBackButton = false, onBackClick }) {
-  const handleBackClick = () => {
-    if (onBackClick) {
-      onBackClick();
-    } else {
-      alert('뒤로 가기');
+// Exercise enum for supported exercises
+const Exercise = {
+  PUSHUP: "푸시업",
+  SQUAT: "스쿼트", 
+  LEG_RAISE: "레그레이즈",
+  DUMBBELL_CURL: "덤벨컬",
+  ONE_ARM_ROW: "원암 덤벨로우",
+  PLANK: "플랭크"
+};
+
+// Helper function to check if exercise is supported
+const isExerciseSupported = (exerciseName) => {
+  return Object.values(Exercise).includes(exerciseName);
+};
+
+const RoutineDetailPage = () => {
+  const navigate = useNavigate();
+  const { day } = useParams();
+  
+  // For testing - replace with actual params
+  //const day = 1; // This will come from useParams()
+  
+  const [routine, setRoutine] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [editingExercise, setEditingExercise] = useState(null);
+  const [editingSet, setEditingSet] = useState(null);
+  
+  const userId = 1; // Replace with actual user context
+
+  useEffect(() => {
+    fetchRoutineDetail();
+  }, [day]);
+
+  const fetchRoutineDetail = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // TODO: Uncomment when workoutService is available
+      const data = await workoutService.getRoutineByDay(day);
+      
+      setRoutine(data);
+      setLoading(false);
+    } catch (err) {
+      setError('운동 루틴을 불러오는데 실패했습니다.');
+      setLoading(false);
+      console.error('Failed to fetch routine detail:', err);
     }
   };
 
-  return (
-    <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
-      <div className="flex items-center justify-between px-4 py-3 max-w-screen-xl mx-auto">
-        <div className="flex items-center space-x-3">
-          {showBackButton && (
-            <button 
-              onClick={handleBackClick} 
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-            >
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-          )}
-          <h1 className="text-lg font-semibold text-gray-900 truncate">{title}</h1>
-        </div>
-        <div className="w-8"></div>
-      </div>
-    </header>
-  );
-}
-
-function RoutineDetailPage() {
-  // URL에서 ID를 가져왔다고 가정하고 루틴 1을 표시
-  const id = '1';
-
-  // 실제 루틴 데이터를 백엔드에서 가져올 때 사용할 더미 데이터
-  const dummyRoutineDetails = {
-    '1': {
-      name: '전신 근력 운동 - 초급',
-      description: '초보자를 위한 전신 운동 루틴입니다.',
-      exercises: [
-        { name: '스쿼트', sets: 3, reps: 10, notes: '무릎이 발끝을 넘지 않도록' },
-        { name: '푸쉬업', sets: 3, reps: '최대', notes: '무릎 대고 실시 가능' },
-        { name: '런지', sets: 3, reps: 10, notes: '양쪽 다리 번갈아' },
-        { name: '플랭크', sets: 3, time: '60초', notes: '복근에 힘 유지' },
-      ],
-    },
-    '2': {
-      name: '상체 강화 운동 - 중급',
-      description: '가슴, 등, 어깨 위주의 루틴입니다.',
-      exercises: [
-        { name: '벤치프레스', sets: 3, reps: 12, notes: '가슴에 집중' },
-        { name: '덤벨 로우', sets: 3, reps: 10, notes: '등 근육 자극' },
-        { name: '오버헤드 프레스', sets: 3, reps: 10, notes: '어깨 운동' },
-      ],
-    },
-    '3': {
-      name: '하체 집중 운동 - 고급',
-      description: '강도 높은 하체 루틴입니다.',
-      exercises: [
-        { name: '바벨 스쿼트', sets: 4, reps: 8, notes: '깊게 앉기' },
-        { name: '데드리프트', sets: 3, reps: 6, notes: '허리 부상 주의' },
-        { name: '레그 프레스', sets: 3, reps: 15, notes: '최대 이완' },
-      ],
-    },
+  const handleBack = () => {
+    console.log('Navigate back to routine overview');
+    // TODO: Uncomment when routing is set up
+    navigate('/routine');
   };
 
-  const routine = dummyRoutineDetails[id];
-
-  const handleStartExercise = () => {
-    alert(`"${routine.name}" 운동 시작!`);
+  const handleCameraClick = async (exerciseName) => {
+    if (!isExerciseSupported(exerciseName)) {
+      alert(`${exerciseName}는 아직 자세 분석을 지원하지 않습니다.`);
+      return;
+    }
+    
+    try {
+      // TODO: Uncomment when workoutService is available
+      // await workoutService.triggerPostureAnalysis(exerciseName);
+      
+      console.log(`Navigate to ExerciseCameraPage: /routine/${day}/exercise/${exerciseName}`);
+      // TODO: Uncomment when routing is set up
+      //navigate(`/routine/${day}/exercise/${exerciseName}`);
+    } catch (err) {
+      console.error('Failed to trigger posture analysis:', err);
+    }
   };
 
-  const handleGoBack = () => {
-    alert('루틴 목록으로 돌아가기');
+  const handleInfoClick = (exerciseName) => {
+    console.log(`Show exercise info for: ${exerciseName}`);
+    // TODO: Implement exercise information modal/page
+    alert(`${exerciseName} 운동 방법 설명 기능은 곧 추가될 예정입니다.`);
   };
 
-  if (!routine) {
+  const handleCompleteSet = async (exerciseId, setId) => {
+    try {
+      // TODO: Uncomment when workoutService is available
+      // await workoutService.toggleSetCompletion(day, exerciseId, setId);
+      
+      // Update local state optimistically
+      setRoutine(prev => ({
+        ...prev,
+        exercises: prev.exercises.map(exercise => {
+          if (exercise.id === exerciseId) {
+            return {
+              ...exercise,
+              sets: exercise.sets.map(set => {
+                if (set.id === setId) {
+                  return { ...set, completed: !set.completed };
+                }
+                return set;
+              })
+            };
+          }
+          return exercise;
+        })
+      }));
+    } catch (err) {
+      console.error('Failed to toggle set completion:', err);
+    }
+  };
+
+  const handleEditSet = async (exerciseId, setId, field, value) => {
+    try {
+      // TODO: Uncomment when workoutService is available
+      // const updateData = { [field]: value };
+      // await workoutService.updateSet(day, exerciseId, setId, updateData);
+      
+      // Update local state
+      setRoutine(prev => ({
+        ...prev,
+        exercises: prev.exercises.map(exercise => {
+          if (exercise.id === exerciseId) {
+            return {
+              ...exercise,
+              sets: exercise.sets.map(set => {
+                if (set.id === setId) {
+                  return { ...set, [field]: value };
+                }
+                return set;
+              })
+            };
+          }
+          return exercise;
+        })
+      }));
+    } catch (err) {
+      console.error('Failed to update set:', err);
+    }
+  };
+
+  const handleAddSet = async (exerciseId) => {
+    try {
+      // TODO: Uncomment when workoutService is available
+      // await workoutService.addSet(day, exerciseId);
+      // fetchRoutineDetail(); // Refresh to get proper IDs from backend
+      
+      // For testing - add mock set
+      console.log(`Add set to exercise ${exerciseId}`);
+    } catch (err) {
+      console.error('Failed to add set:', err);
+    }
+  };
+
+  const handleDeleteSet = async (exerciseId, setId) => {
+    try {
+      // TODO: Uncomment when workoutService is available
+      // await workoutService.deleteSet(day, exerciseId, setId);
+      
+      // Update local state
+      setRoutine(prev => ({
+        ...prev,
+        exercises: prev.exercises.map(exercise => {
+          if (exercise.id === exerciseId) {
+            return {
+              ...exercise,
+              sets: exercise.sets.filter(set => set.id !== setId)
+            };
+          }
+          return exercise;
+        })
+      }));
+    } catch (err) {
+      console.error('Failed to delete set:', err);
+    }
+  };
+
+  const handleDeleteExercise = async (exerciseId) => {
+    try {
+      // TODO: Uncomment when workoutService is available
+      // await workoutService.deleteExercise(day, exerciseId);
+      
+      // Update local state
+      setRoutine(prev => ({
+        ...prev,
+        exercises: prev.exercises.filter(exercise => exercise.id !== exerciseId)
+      }));
+      setEditingExercise(null);
+    } catch (err) {
+      console.error('Failed to delete exercise:', err);
+    }
+  };
+
+  const handleCompleteRoutine = async () => {
+    try {
+      // TODO: Uncomment when workoutService is available
+      // const result = await workoutService.completeRoutine(day, userId);
+      // alert(`루틴 완료! 현재 진행도: ${result.progress}, 레벨: ${result.level}`);
+      // await workoutService.resetUserRoutines(userId);
+      // fetchRoutineDetail();
+      
+      // For testing
+      alert('루틴 완료! (테스트 모드)');
+    } catch (err) {
+      alert('아직 완료되지 않은 세트가 있습니다!');
+    }
+  };
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Header title="루틴 상세" showBackButton={true} />
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center px-4 py-3 max-w-screen-xl mx-auto">
+            <button onClick={handleBack} className="mr-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">운동 상세</h1>
+          </div>
+        </header>
+        <div className="max-w-screen-xl mx-auto px-4 py-6 flex items-center justify-center min-h-64">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto"></div>
+            <p className="text-lg text-gray-600">운동 루틴을 불러오는 중...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center px-4 py-3 max-w-screen-xl mx-auto">
+            <button onClick={handleBack} className="mr-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">운동 상세</h1>
+          </div>
+        </header>
         <div className="max-w-screen-xl mx-auto px-4 py-6">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 13.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
             </div>
-            <p className="text-gray-600 text-lg mb-4">해당 루틴을 찾을 수 없습니다.</p>
+            <h3 className="text-lg font-medium text-red-800 mb-2">오류가 발생했습니다</h3>
+            <p className="text-red-600 mb-4">{error}</p>
             <button 
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
-              onClick={handleGoBack}
+              onClick={fetchRoutineDetail}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
             >
-              루틴 목록으로 돌아가기
+              다시 시도
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!routine) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center px-4 py-3 max-w-screen-xl mx-auto">
+            <button onClick={handleBack} className="mr-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200">
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900">운동 상세</h1>
+          </div>
+        </header>
+        <div className="max-w-screen-xl mx-auto px-4 py-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <p className="text-gray-600 text-lg">해당 루틴을 찾을 수 없습니다.</p>
           </div>
         </div>
       </div>
@@ -104,83 +284,194 @@ function RoutineDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header title={routine.name} showBackButton={true} />
-      
-      <div className="max-w-screen-xl mx-auto px-4 py-6">
-        {/* 루틴 설명 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <p className="text-gray-600 text-lg leading-relaxed">{routine.description}</p>
-        </div>
-
-        {/* 운동 목록 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-            <svg className="w-6 h-6 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            운동 목록
-          </h3>
-          
-          <div className="space-y-4">
-            {routine.exercises.map((exercise, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors duration-200">
-                <div className="flex items-start justify-between mb-3">
-                  <h4 className="text-lg font-semibold text-gray-900">{exercise.name}</h4>
-                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                    #{index + 1}
-                  </span>
-                </div>
-                
-                <div className="flex flex-wrap gap-4 mb-3">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                    <span className="font-medium">세트:</span>
-                    <span className="ml-1">{exercise.sets}</span>
-                  </div>
-                  
-                  <div className="flex items-center text-sm text-gray-600">
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="font-medium">반복:</span>
-                    <span className="ml-1">{exercise.reps || exercise.time}</span>
-                  </div>
-                </div>
-                
-                {exercise.notes && (
-                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
-                    <div className="flex items-start">
-                      <svg className="w-4 h-4 text-yellow-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="text-sm text-yellow-800">
-                        <span className="font-medium">주의사항:</span> {exercise.notes}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+        <div className="flex items-center justify-between px-4 py-3 max-w-screen-xl mx-auto">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={handleBack}
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-600" />
+            </button>
+            <h1 className="text-lg font-semibold text-gray-900 truncate">{routine.title}</h1>
           </div>
+          <div className="w-8"></div>
+        </div>
+      </header>
+
+      <div className="max-w-screen-xl mx-auto px-4 py-6">
+        {/* Routine Info */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="flex items-center space-x-3 mb-2">
+            <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-800 font-semibold rounded-full text-sm">
+              {routine.day}
+            </span>
+            <h2 className="text-xl font-bold text-gray-900">{routine.title}</h2>
+          </div>
+          <p className="text-gray-600">오늘의 운동을 시작해보세요. 각 운동별로 자세 분석을 받을 수 있습니다.</p>
+        </div>
+        
+        {/* Exercise Cards */}
+        <div className="space-y-4 mb-6">
+          {routine.exercises.map(exercise => (
+            <div key={exercise.id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              {/* Exercise Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-gray-900">{exercise.name}</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleInfoClick(exercise.name)}
+                    className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors duration-200"
+                    title="운동 방법 보기"
+                  >
+                    <Info size={20} />
+                  </button>
+                  
+                  {isExerciseSupported(exercise.name) && (
+                    <button
+                      onClick={() => handleCameraClick(exercise.name)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
+                      title="자세 교정"
+                    >
+                      <Camera size={20} />
+                    </button>
+                  )}
+                  
+                  <div className="relative">
+                    <button
+                      onClick={() => setEditingExercise(editingExercise === exercise.id ? null : exercise.id)}
+                      className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors duration-200"
+                    >
+                      <MoreVertical size={20} />
+                    </button>
+                    {editingExercise === exercise.id && (
+                      <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                        <button
+                          onClick={() => handleDeleteExercise(exercise.id)}
+                          className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200 flex items-center space-x-2"
+                        >
+                          <Trash2 size={16} />
+                          <span>운동 삭제</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sets */}
+              <div className="space-y-3">
+                {exercise.sets.map((set, index) => (
+                  <div key={set.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-600 w-16">
+                      세트 {index + 1}
+                    </span>
+                    
+                    {editingSet === `${exercise.id}-${set.id}` ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        {set.time ? (
+                          <input
+                            type="text"
+                            onChange={(e) => handleEditSet(exercise.id, set.id, 'time', e.target.value)}
+                            className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            style={{ width: '120px' }}
+                            autoFocus
+                          />
+                        ) : (
+                          <>
+                            <input
+                              type="number"
+                              value={set.reps || ''}
+                              onChange={(e) => handleEditSet(exercise.id, set.id, 'reps', parseInt(e.target.value) || 0)}
+                              className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-16"
+                              placeholder="회"
+                              autoFocus
+                            />
+                            <span className="text-sm text-gray-600">회</span>
+                            {set.weight !== undefined && set.weight !== null && (
+                              <>
+                                <input
+                                  type="number"
+                                  value={set.weight || ''}
+                                  onChange={(e) => handleEditSet(exercise.id, set.id, 'weight', parseFloat(e.target.value) || 0)}
+                                  className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-16"
+                                  placeholder="kg"
+                                />
+                                <span className="text-sm text-gray-600">kg</span>
+                              </>
+                            )}
+                          </>
+                        )}
+                        <button
+                          onClick={() => setEditingSet(null)}
+                          className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors duration-200"
+                        >
+                          <Check size={16} />
+                        </button>
+                        {exercise.sets.length > 1 && (
+                          <button
+                            onClick={() => handleDeleteSet(exercise.id, set.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-1">
+                        <button
+                          onClick={() => setEditingSet(`${exercise.id}-${set.id}`)}
+                          className="flex items-center gap-2 px-2 py-1 hover:bg-white rounded transition-colors duration-200"
+                        >
+                          <span className="text-sm text-gray-700">
+                            {set.time || `${set.reps}회${set.weight ? ` ${set.weight}kg` : ''}`}
+                          </span>
+                          <Edit2 size={14} className="text-gray-400" />
+                        </button>
+                        <button
+                          onClick={() => handleCompleteSet(exercise.id, set.id)}
+                          className={`ml-auto px-4 py-1 rounded-lg text-sm font-medium transition-colors duration-200 ${
+                            set.completed 
+                              ? 'bg-green-100 text-green-800 border border-green-200' 
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {set.completed ? '완료' : 'Done'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Add Set Button */}
+                <button
+                  onClick={() => handleAddSet(exercise.id)}
+                  className="flex items-center gap-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200 text-sm font-medium"
+                >
+                  <Plus size={16} />
+                  <span>세트 추가</span>
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* 운동 시작 버튼 */}
+        {/* Complete Routine Button */}
         <div className="sticky bottom-4">
-          <button 
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl transform hover:scale-105"
-            onClick={handleStartExercise}
+          <button
+            onClick={handleCompleteRoutine}
+            className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293H15M9 10v4a2 2 0 002 2h2a2 2 0 002-2v-4M9 10V6a2 2 0 012-2h2a2 2 0 012 2v4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span className="text-lg">운동 시작하기</span>
+            <span className="text-lg">루틴 완료</span>
           </button>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default RoutineDetailPage;

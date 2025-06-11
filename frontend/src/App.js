@@ -117,6 +117,7 @@ const apiCall = async (url, options = {}) => {
 // 네비게이션 컴포넌트
 function Navigation() {
   const { isAuthenticated, user, logout } = useAuth();
+  const navigate = useNavigate(); 
 
   if (!isAuthenticated) {
     return null;
@@ -124,14 +125,15 @@ function Navigation() {
 
   const handleLogout = () => {
     logout();
-    window.location.reload();
+    //window.location.reload(); // 페이지 새로고침 -> 대시보드 이외의 페이지에서 로직이 작동하지 않음
+    navigate('/login'); // 로그아웃 후 로그인 페이지로 리다이렉트
   };
 
   return (
     <nav className="bg-white shadow-sm border-b p-4">
       <div className="flex justify-between items-center">
         <div className="flex space-x-4">
-          <Link to="/" className="text-blue-600 hover:text-blue-800 font-medium">Home</Link>
+          <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">Home</Link>
         </div>
         <div className="flex items-center space-x-4">
           <span className="text-gray-700 flex items-center">
@@ -193,7 +195,7 @@ function OverlayChatbot() {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-150 h-200 flex flex-col max-w-full max-h-full m-4">
+      <div className="bg-white rounded-lg w-[600px] h-[700px] flex flex-col max-w-full max-h-full m-4">
         <div className="flex justify-between items-center p-4 border-b">
           <h3 className="text-lg font-semibold">상담 챗봇</h3>
           <button onClick={closeChatbot} className="text-gray-500 hover:text-gray-700 text-xl">
