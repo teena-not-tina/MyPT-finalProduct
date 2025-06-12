@@ -6,6 +6,8 @@ const UserDashboard = () => {
   
   const navigate = useNavigate();
 
+  const [showChatbot, setShowChatbot] = useState(false);
+
   const handleExerciseStart = () => {
     navigate('/routine'); // /exercise 경로로 이동
   };
@@ -106,9 +108,9 @@ const fetchWithAuth = async (url, options = {}) => {
       
       // 사용자 프로필과 이미지 데이터를 병렬로 가져오기
       const [profile, imageResponse] = await Promise.all([
-        fetchWithAuth('http://192.168.0.21:8000/api/user/profile'),
+        fetchWithAuth('/api/user/profile'),
         // get_current_img.py의 get_user_image 엔드포인트 사용
-        fetchWithAuth(`http://192.168.0.21:8000/user/${userId}/image`).catch(() => null)
+        fetchWithAuth(`/user/${userId}/image`).catch(() => null)
       ]);
       
       // 대시보드 데이터 구성
@@ -203,7 +205,7 @@ const fetchWithAuth = async (url, options = {}) => {
       formData.append('file', selectedFile);
 
       const token = getAuthToken();
-      const response = await fetch('http://192.168.0.21:8000/upload-user-image', {
+      const response = await fetch('/upload-user-image', {
         method: 'POST',
         headers: {
           // 'Authorization': `Bearer ${token}`,
@@ -264,7 +266,7 @@ const fetchWithAuth = async (url, options = {}) => {
         });
       }, 2000);
 
-      const response = await fetchWithAuth('http://192.168.0.21:8000/generate-images', {
+      const response = await fetchWithAuth('/generate-images', {
         method: 'POST',
         body: JSON.stringify({ base_image_name: "proteengrayal.png" }),
       });
@@ -435,7 +437,7 @@ return (
         {dashboardData?.has_image ? (
           // 이미지가 있는 경우 - 파란 원 안에 이미지 표시
           <div className="relative">
-            <div className="w-80 h-80 bg-blue-400 flex items-center justify-center shadow-lg rounded-full">
+            <div className="w-80 h-80 bg-blue-400 flex items-center justify-center shadow-lg rounded-full"  onClick={() => navigate('/chatbot/avatar')}>
               <img
                 src={`data:${dashboardData.content_type};base64,${dashboardData.image_data}`}
                 alt={`AI 생성 아바타 (${dashboardData.tag || 'Unknown'} 스타일)`}

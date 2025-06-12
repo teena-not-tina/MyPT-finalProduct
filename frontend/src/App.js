@@ -133,19 +133,26 @@ function Navigation() {
     <nav className="bg-white shadow-sm border-b p-4">
       <div className="flex justify-between items-center">
         <div className="flex space-x-4">
-          <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">Home</Link>
+          <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
+            <img
+              src="/img.png"
+              alt="Home"
+              style={{ height: '2.5rem', width: 'auto' }} // 1.5rem은 기존 텍스트 크기(text-lg)와 유사한 세로 길이
+              className="object-contain"
+           />
+          </Link>
         </div>
         <div className="flex items-center space-x-4">
           <span className="text-gray-700 flex items-center">
             <User className="h-4 w-4 mr-1" />
-            안녕하세요, {user?.email}님
+            {user?.email}
           </span>
           <button
             onClick={handleLogout}
             className="flex items-center space-x-1 text-red-600 hover:text-red-800 font-medium"
           >
             <LogOut className="h-4 w-4" />
-            <span>로그아웃</span>
+            <span>logout</span>
           </button>
         </div>
       </div>

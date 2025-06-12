@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from models import MsgPayload
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from stable_diffusion import contact_comfyui, character_update
+from stable_diffusion import contact_comfyui, character_update, food_generator
 from stable_diffusion.img_output import get_current_img
 import routes
 from contextlib import asynccontextmanager
@@ -38,6 +38,7 @@ app.include_router(contact_comfyui.router, prefix="")
 app.include_router(character_update.router, prefix="")
 app.include_router(get_current_img.router, prefix="")
 app.include_router(routes.router, prefix="")
+app.include_router(food_generator, prefix="")
 
 @app.get("/")
 def root(request: Request) -> dict[str, str]:

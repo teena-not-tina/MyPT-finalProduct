@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 function InbodyFormPage() {
   const navigate = useNavigate();
+  
 
   const [formData, setFormData] = useState({
     gender: '',

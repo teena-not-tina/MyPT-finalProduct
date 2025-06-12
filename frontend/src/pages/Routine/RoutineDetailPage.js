@@ -22,6 +22,7 @@ const isExerciseSupported = (exerciseName) => {
 const RoutineDetailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [showChatbot, setShowChatbot] = useState(false);
   
   // Get day from navigation state, fallback to URL params, then default to 1
   const selectedDay = location.state?.day || new URLSearchParams(location.search).get('day') || 1;
@@ -34,7 +35,9 @@ const RoutineDetailPage = () => {
   const [editingSet, setEditingSet] = useState(null);
   const [noRoutineSelected, setNoRoutineSelected] = useState(false);
   
-  const userId = 1; // Replace with actual user context
+  // const userId = 3; // Replace with actual user context
+  const getUserId = () => sessionStorage.getItem('user_id');
+  const userId = getUserId();
 
   useEffect(() => {
     // Check if we have a valid day selected
@@ -162,7 +165,6 @@ const RoutineDetailPage = () => {
     try {
       await workoutService.deleteSet(dayNumber, exerciseId, setId, userId);
       
-      // Update local state
       setRoutine(prev => ({
         ...prev,
         exercises: prev.exercises.map(exercise => {
@@ -175,7 +177,11 @@ const RoutineDetailPage = () => {
           return exercise;
         })
       }));
+
+      fetchRoutineDetail();
+
     } catch (err) {
+      alert(`세트 삭제에 실패했습니다. 이미 삭제되었거나 존재하지 않는 세트입니다. (setId: ${setId})`);  
       console.error('Failed to delete set:', err);
     }
   };
@@ -442,12 +448,20 @@ const RoutineDetailPage = () => {
                         >
                           <Check size={16} />
                         </button>
-                        {exercise.sets.length > 1 && (
+                          {exercise.sets.length > 1 ? (
                           <button
                             onClick={() => handleDeleteSet(exercise.id, set.id)}
                             className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
                           >
                             <Trash2 size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteExercise(exercise.id)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                          >
+                            <Trash2 size={16} />
+                            <span className="ml-1 text-xs">운동 삭제</span>
                           </button>
                         )}
                       </div>
@@ -503,6 +517,9 @@ const RoutineDetailPage = () => {
           </button>
         </div>
       </div>
+
+
+      
     </div>
   );
 };

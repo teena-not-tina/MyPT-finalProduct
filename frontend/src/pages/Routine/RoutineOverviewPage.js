@@ -12,8 +12,11 @@ const RoutineOverviewPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  const userId = 1; // Replace with actual user context
-  
+  // const userId = 3; // Replace with actual user context
+
+  const getUserId = () => sessionStorage.getItem('user_id');
+  const userId = getUserId();
+
   useEffect(() => {
     fetchRoutines();
   }, [userId]);
@@ -179,7 +182,7 @@ const RoutineOverviewPage = () => {
 
       {!showChatbot && (
         <button
-          className="floating-chatbot-btn"
+          className="fixed bottom-6 right-6 z-50 shadow-lg rounded-full bg-blue-600 hover:bg-blue-700 text-white w-16 h-16 flex items-center justify-center transition-colors duration-200"
           onClick={() => setShowChatbot(true)}
           aria-label="AI 트레이너 열기"
         >
@@ -190,18 +193,32 @@ const RoutineOverviewPage = () => {
       )}
 
       {showChatbot && (
-        <div className="floating-chatbot-full-window">
-          <button
-            className="close-chatbot-btn"
-            onClick={() => setShowChatbot(false)}
-            aria-label="챗봇 닫기"
+        <div
+          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
+          onClick={() => setShowChatbot(false)}
+        >
+          <div
+            className="
+              bg-white rounded-xl shadow-lg
+              w-full max-w-sm sm:max-w-md
+              h-[90vh] max-h-[90vh]
+              flex flex-col relative overflow-hidden
+            "
+            onClick={e => e.stopPropagation()}
           >
-            ×
-          </button>
-          <ChatbotPage />
+            <button
+              className="close-chatbot-btn absolute top-2 right-2 z-10 text-2xl text-gray-400 hover:text-gray-700"
+              onClick={() => setShowChatbot(false)}
+              aria-label="챗봇 닫기"
+            >
+              ×
+            </button>
+            <div className="flex-1 overflow-y-auto">
+              <ChatbotPage />
+            </div>
+          </div>
         </div>
       )}
-
     </div>
   );
 };

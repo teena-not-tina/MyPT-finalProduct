@@ -20,7 +20,7 @@ function AvatarProgressPage() {
       const token = getAuthToken();
       if (!userId || !token) throw new Error('인증 정보가 없습니다.');
 
-      const response = await fetch(`http://0.0.0.0:8000/api/user/profile`, {
+      const response = await fetch(`/api/user/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('프로필 정보를 불러오는데 실패했습니다.');
@@ -39,7 +39,7 @@ function AvatarProgressPage() {
       const token = getAuthToken();
       if (!userId || !token) throw new Error('인증 정보가 없습니다.');
 
-      const response = await fetch(`http://0.0.0.0:8000/user/${userId}/image`, {
+      const response = await fetch(`/user/${userId}/image`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('이미지를 불러오는데 실패했습니다.');
@@ -100,20 +100,20 @@ function AvatarProgressPage() {
         <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
           <div className="mb-6">
             {loading ? (
-              <div className="w-24 h-24 mx-auto rounded-full bg-gray-200 animate-pulse" />
+              <div className="w-60 h-60 mx-auto rounded-full bg-gray-200 animate-pulse" />
             ) : error ? (
-              <div className="w-24 h-24 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+              <div className="w-60 h-60 mx-auto bg-red-100 rounded-full flex items-center justify-center">
                 <span className="text-red-500">Error</span>
               </div>
             ) : avatarImage?.image_data ? (
               <img 
                 src={`data:${avatarImage.content_type};base64,${avatarImage.image_data}`}
                 alt="My Avatar" 
-                className="w-24 h-24 mx-auto rounded-full object-cover border-4 border-blue-200" 
+                className="w-60 h-60 mx-auto rounded-full object-cover border-4 border-blue-200" 
               />
             ) : (
-              <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <div className="w-40 h-40 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+                <svg className="w-40 h-40 text-white" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                 </svg>
               </div>

@@ -23,7 +23,9 @@ function Header({ title, showBackButton = false, onBackClick }) {
           <i className="fas fa-arrow-left text-gray-700 text-lg"></i>
         </button>
       )}
-      <h1 className={`text-lg font-semibold text-gray-900 flex-1 text-center ${showBackButton ? 'ml-14' : ''}`}>
+      <h1
+        className={`text-lg font-semibold text-gray-900 flex-1 text-center absolute left-1/2 -translate-x-1/2`}
+      >
         {title}
       </h1>
     </header>

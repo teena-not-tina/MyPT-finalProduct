@@ -31,7 +31,9 @@ const ExerciseCameraPage = () => {
   const animationIdRef = useRef(null);
   const lastSendTimeRef = useRef(0);
   
-  const userId = 1; // Replace with actual user context
+  // const userId = 1; // Replace with actual user context
+  const getUserId = () => sessionStorage.getItem('user_id');
+  const userId = getUserId();
   
   // 디버그 로그 함수
   const debugLog = (message, data = null) => {
@@ -419,12 +421,12 @@ const ExerciseCameraPage = () => {
               {isCameraOn ? (
                 <>
                   <CameraOff size={20} />
-                  <span>카메라 끄기</span>
+                  <span>OFF</span>
                 </>
               ) : (
                 <>
                   <Camera size={20} />
-                  <span>카메라 켜기</span>
+                  <span>ON</span>
                 </>
               )}
             </button>
