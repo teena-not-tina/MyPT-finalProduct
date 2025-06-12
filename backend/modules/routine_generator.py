@@ -779,6 +779,7 @@ class AIAnalyzer:
             # 사용자 데이터 검증
             inbody = user_data.get("inbody", {})
             preferences = user_data.get("preferences", {})
+            user_id = user_data.get("user_id")  # user_id 추출
             
             # 필수 필드 확인
             required_fields = ["gender", "age", "height", "weight"]
@@ -817,7 +818,7 @@ class AIAnalyzer:
                     반드시 다음 JSON 형태로 4일간의 운동 루틴을 생성해주세요:
                     [
                         {{
-                            "user_id": 1,
+                            "user_id": "{user_id or 1}",
                             "day": 1,
                             "title": "1일차 - 하체 & 힙 집중",
                             "exercises": [
@@ -849,11 +850,12 @@ class AIAnalyzer:
                     ]
                     
                     주의사항:
-                    1. 각 운동의 id는 고유한 번호로 설정
-                    2. sets 배열 안의 각 세트도 고유한 id 필요
-                    3. reps(반복횟수), weight(중량), time(시간) 중 해당하는 것만 포함
-                    4. completed는 항상 false로 설정
-                    5. 사용자의 경험 수준과 목표에 맞는 적절한 중량과 횟수 설정
+                    1. user_id는 "{user_id or 1}"로 설정
+                    2. 각 운동의 id는 고유한 번호로 설정
+                    3. sets 배열 안의 각 세트도 고유한 id 필요
+                    4. reps(반복횟수), weight(중량), time(시간) 중 해당하는 것만 포함
+                    5. completed는 항상 false로 설정
+                    6. 사용자의 경험 수준과 목표에 맞는 적절한 중량과 횟수 설정
                     """
                 }, {
                     "role": "user", 
@@ -872,7 +874,7 @@ class AIAnalyzer:
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "user_id": {"type": "integer", "description": "사용자 ID"},
+                                            "user_id": {"type": ["integer", "string"], "description": "사용자 ID"},
                                             "day": {"type": "integer", "description": "운동 일차 (1-4)"},
                                             "title": {"type": "string", "description": "운동 제목 (예: 1일차 - 하체 & 힙 집중)"},
                                             "exercises": {
@@ -926,13 +928,19 @@ class AIAnalyzer:
                 saved_routines = []
                 for routine in routine_data['routines']:
                     try:
+                        # user_id 설정 (전달받은 user_id 우선 사용)
+                        if user_id:
+                            routine['user_id'] = user_id
+                        elif not routine.get('user_id'):
+                            routine['user_id'] = 1  # 기본값
+                        
                         # MongoDB에 저장
                         saved_id = self.db.save_routine(routine)
                         if saved_id:
                             routine['_id'] = str(saved_id)
                             routine['created_at'] = datetime.now(timezone.utc).isoformat()
                             saved_routines.append(routine)
-                            logger.info(f"운동 루틴 저장 완료: Day {routine['day']}")
+                            logger.info(f"운동 루틴 저장 완료: Day {routine['day']} (사용자: {routine['user_id']})")
                     except Exception as e:
                         logger.error(f"운동 루틴 저장 실패: {str(e)}")
                 
@@ -958,29 +966,74 @@ class AIAnalyzer:
     def _create_analysis_text(self, inbody: Dict, preferences: Dict) -> str:
         """사용자 분석 텍스트 생성"""
         try:
-            bmi = inbody.get('bmi', 0)
+            # BMI 값 안전하게 처리
+            bmi_raw = inbody.get('bmi', 0)
+            try:
+                # 문자열인 경우 숫자로 변환 시도
+                if isinstance(bmi_raw, str):
+                    # "23.5" 같은 문자열에서 숫자만 추출
+                    import re
+                    bmi_numbers = re.findall(r'\d+\.?\d*', bmi_raw)
+                    bmi = float(bmi_numbers[0]) if bmi_numbers else 0
+                else:
+                    bmi = float(bmi_raw) if bmi_raw else 0
+            except (ValueError, TypeError, IndexError):
+                bmi = 0
+            
+            # BMI 상태 판정
             bmi_status = "정상"
-            if bmi < 18.5:
-                bmi_status = "저체중"
-            elif bmi < 23:
-                bmi_status = "정상"
-            elif bmi < 25:
-                bmi_status = "과체중"
-            else:
-                bmi_status = "비만"
+            if bmi > 0:  # BMI 값이 유효한 경우에만 판정
+                if bmi < 18.5:
+                    bmi_status = "저체중"
+                elif bmi < 23:
+                    bmi_status = "정상"
+                elif bmi < 25:
+                    bmi_status = "과체중"
+                else:
+                    bmi_status = "비만"
+            
+            # 기초대사율 안전하게 처리
+            bmr_raw = inbody.get('basal_metabolic_rate', '계산됨')
+            try:
+                if isinstance(bmr_raw, str) and bmr_raw != '계산됨':
+                    import re
+                    bmr_numbers = re.findall(r'\d+', bmr_raw)
+                    bmr_display = f"{bmr_numbers[0]}kcal" if bmr_numbers else '계산됨'
+                elif isinstance(bmr_raw, (int, float)):
+                    bmr_display = f"{int(bmr_raw)}kcal"
+                else:
+                    bmr_display = '계산됨'
+            except (ValueError, TypeError, IndexError):
+                bmr_display = '계산됨'
+            
+            # BMI 표시 형식 결정
+            bmi_display = f"{bmi:.1f}" if bmi > 0 else "계산됨"
             
             analysis = f"""
-## 🎯 개인 분석 결과
+    ## 🎯 개인 분석 결과
 
-**신체 정보 분석:**
-- BMI {bmi} ({bmi_status})
-- 기초대사율: {inbody.get('basal_metabolic_rate', '계산됨')}kcal
-- 목표: {preferences.get('goal', '건강 유지')}
-- 경험 수준: {preferences.get('experience_level', '보통')}
+    **신체 정보 분석:**
+    - BMI {bmi_display} ({bmi_status})
+    - 기초대사율: {bmr_display}
+    - 목표: {preferences.get('goal', '건강 유지')}
+    - 경험 수준: {preferences.get('experience_level', '보통')}
 
-**맞춤 운동 계획:**
-사용자의 신체 조건과 목표를 고려하여 4일간의 체계적인 운동 루틴을 설계했습니다.
-{preferences.get('goal', '건강 유지')} 목표에 최적화된 운동 강도와 볼륨으로 구성되었습니다.
+    **맞춤 운동 계획:**
+    사용자의 신체 조건과 목표를 고려하여 4일간의 체계적인 운동 루틴을 설계했습니다.
+    {preferences.get('goal', '건강 유지')} 목표에 최적화된 운동 강도와 볼륨으로 구성되었습니다.
+            """.strip()
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"분석 텍스트 생성 실패: {str(e)}")
+            # 기본 분석 텍스트 반환
+            return f"""
+    ## 🎯 개인 분석 결과
+
+    **맞춤 운동 계획:**
+    사용자의 목표({preferences.get('goal', '건강 유지')})에 맞는 4일간의 운동 루틴이 생성되었습니다.
+    {preferences.get('experience_level', '보통')} 수준에 적합한 운동 강도로 구성되었습니다.
             """.strip()
             
             return analysis
