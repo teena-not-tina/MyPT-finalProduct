@@ -1,0 +1,238 @@
+[
+  {
+    "day": 1,
+    "title": "1일차 - 하체 & 힙 집중",
+    "exercises": [
+      {
+        "id": 1,
+        "name": "스미스머신 스쿼트",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 12,
+            "weight": 20,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 12,
+            "weight": 20,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "레그 프레스",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 50,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 50,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "힙 쓰러스터",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 12,
+            "weight": 30,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 12,
+            "weight": 30,
+            "completed": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "day": 2,
+    "title": "2일차 - 상체 집중",
+    "exercises": [
+      {
+        "id": 4,
+        "name": "벤치 프레스",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 40,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 40,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "덤벨 로우",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 12,
+            "weight": 15,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 12,
+            "weight": 15,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "name": "숄더 프레스",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 20,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 20,
+            "completed": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "day": 3,
+    "title": "3일차 - 전신 운동",
+    "exercises": [
+      {
+        "id": 7,
+        "name": "버피 테스트",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 0,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 0,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "name": "플랭크",
+        "sets": [
+          {
+            "id": 1,
+            "time": "30초",
+            "completed": false
+          },
+          {
+            "id": 2,
+            "time": "30초",
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "name": "점핑 잭",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 15,
+            "weight": 0,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 15,
+            "weight": 0,
+            "completed": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "day": 4,
+    "title": "4일차 - 하체 & 복근 집중",
+    "exercises": [
+      {
+        "id": 10,
+        "name": "데드리프트",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 50,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 50,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "name": "레그 레이즈",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 12,
+            "weight": 0,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 12,
+            "weight": 0,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "name": "사이드 플랭크",
+        "sets": [
+          {
+            "id": 1,
+            "time": "30초",
+            "completed": false
+          },
+          {
+            "id": 2,
+            "time": "30초",
+            "completed": false
+          }
+        ]
+      }
+    ]
+  }
+]

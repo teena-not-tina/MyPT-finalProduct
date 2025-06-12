@@ -1,0 +1,178 @@
+[
+  {
+    "day": 1,
+    "title": "1일차 - 상체 집중",
+    "exercises": [
+      {
+        "id": 1,
+        "name": "벤치 프레스",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 60,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 60,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "풀업",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 8,
+            "weight": 0,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 8,
+            "weight": 0,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "덤벨 숄더 프레스",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 12,
+            "weight": 20,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 12,
+            "weight": 20,
+            "completed": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "day": 2,
+    "title": "2일차 - 하체 & 코어 집중",
+    "exercises": [
+      {
+        "id": 1,
+        "name": "스쿼트",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 12,
+            "weight": 70,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 12,
+            "weight": 70,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "레그 프레스",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 100,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 100,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "플랭크",
+        "sets": [
+          {
+            "id": 1,
+            "time": "30초",
+            "completed": false
+          },
+          {
+            "id": 2,
+            "time": "30초",
+            "completed": false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "day": 3,
+    "title": "3일차 - 전신 운동",
+    "exercises": [
+      {
+        "id": 1,
+        "name": "버피",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 0,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 0,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "데드리프트",
+        "sets": [
+          {
+            "id": 1,
+            "reps": 10,
+            "weight": 80,
+            "completed": false
+          },
+          {
+            "id": 2,
+            "reps": 10,
+            "weight": 80,
+            "completed": false
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "마운틴 클라이머",
+        "sets": [
+          {
+            "id": 1,
+            "time": "30초",
+            "completed": false
+          },
+          {
+            "id": 2,
+            "time": "30초",
+            "completed": false
+          }
+        ]
+      }
+    ]
+  }
+]
