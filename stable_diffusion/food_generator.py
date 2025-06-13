@@ -141,12 +141,56 @@ def generate_image_from_comfyui(prompt, user_id):
         image_tag = image_tag.replace(" ", "_")
 
         # 3. 임시 파일로 저장
-        image_binary = base64.b64decode(image_base64)
-        temp_image_path = os.path.join(comfyui_output, f"input_{user_id}_{image_tag}.png")
-        with open(temp_image_path, "wb") as f:
-            f.write(image_binary)
+        try:
+            print(f"image_base64 타입: {type(image_base64)}")
+            
+            # MongoDB Binary 타입 처리
+            if hasattr(image_base64, 'decode'):
+                # Binary 객체인 경우 직접 바이너리 데이터로 사용
+                image_binary = bytes(image_base64)
+                print(f"Binary 타입 데이터 크기: {len(image_binary)} bytes")
+            else:
+                # 문자열 base64인 경우 기존 로직 사용
+                if isinstance(image_base64, bytes):
+                    image_base64 = image_base64.decode('utf-8')
+                
+                print(f"디코딩할 base64 데이터 길이: {len(image_base64)}")
+                print(f"base64 데이터 시작 부분: {image_base64[:50]}...")
+                
+                # base64 데이터에서 data URL 프리픽스 제거 (있는 경우)
+                if image_base64.startswith('data:image'):
+                    image_base64 = image_base64.split(',', 1)[1]
+                    print("data URL 프리픽스 제거됨")
+                
+                # base64 패딩 문제 해결
+                missing_padding = len(image_base64) % 4
+                if missing_padding:
+                    image_base64 += '=' * (4 - missing_padding)
+                    print(f"패딩 추가: {'=' * (4 - missing_padding)}")
+                
+                image_binary = base64.b64decode(image_base64)
+                print(f"디코딩된 바이너리 데이터 크기: {len(image_binary)} bytes")
+            
+            # PNG 헤더 확인 (PNG 파일은 89 50 4E 47로 시작)
+            if len(image_binary) >= 4:
+                header = image_binary[:4]
+                print(f"파일 헤더: {header.hex().upper()}")
+                if header != b'\x89PNG':
+                    print("경고: PNG 헤더가 아닙니다!")
+            
+            temp_image_path = os.path.join(comfyui_output, f"input_{user_id}_{image_tag}.png")
+            print(f"저장 경로: {temp_image_path}")
+            
+            with open(temp_image_path, "wb") as f:
+                f.write(image_binary)
+            
+            print(f"이미지 저장 완료: {os.path.getsize(temp_image_path)} bytes")
+            
+        except Exception as e:
+            print(f"이미지 저장 중 오류: {str(e)}")
+            raise e
 
-        time.sleep(2)
+        # time.sleep(2)
 
         # 4. ComfyUI 워크플로우에 설정
         workflow["9"]["inputs"]["image"] = temp_image_path
