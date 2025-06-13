@@ -685,7 +685,7 @@ class AIAnalyzer:
                     반드시 다음 JSON 형태로 4일간의 운동 루틴을 생성해주세요:
                     [
                         {{
-                            "user_id": "{user_id or 1}",
+                            "user_id": {int(user_id) if user_id and user_id.isdigit() else 1},
                             "day": 1,
                             "title": "1일차 - 하체 & 힙 집중",
                             "exercises": [
@@ -717,7 +717,7 @@ class AIAnalyzer:
                     ]
                     
                     주의사항:
-                    1. user_id는 "{user_id or 1}"로 설정
+                    1. user_id는 반드시 정수(integer)로 설정: {int(user_id) if user_id and user_id.isdigit() else 1}
                     2. 각 운동의 id는 고유한 번호로 설정
                     3. sets 배열 안의 각 세트도 고유한 id 필요
                     4. reps(반복횟수), weight(중량), time(시간) 중 해당하는 것만 포함
@@ -742,7 +742,7 @@ class AIAnalyzer:
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "user_id": {"type": ["integer", "string"], "description": "사용자 ID"},
+                                            "user_id": {"type": "integer", "description": "사용자 ID (정수)"},
                                             "day": {"type": "integer", "description": "운동 일차 (1-4)"},
                                             "title": {"type": "string", "description": "운동 제목 (예: 1일차 - 하체 & 힙 집중)"},
                                             "exercises": {
@@ -796,9 +796,12 @@ class AIAnalyzer:
                 saved_routines = []
                 for routine in routine_data['routines']:
                     try:
-                        # user_id 설정 (전달받은 user_id 우선 사용)
+                        # user_id 설정 (정수로 변환)
                         if user_id:
-                            routine['user_id'] = user_id
+                            try:
+                                routine['user_id'] = int(user_id)  # 문자열을 정수로 변환
+                            except (ValueError, TypeError):
+                                routine['user_id'] = 1  # 변환 실패 시 기본값
                         elif not routine.get('user_id'):
                             routine['user_id'] = 1  # 기본값
                         

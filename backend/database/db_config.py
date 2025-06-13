@@ -1,11 +1,12 @@
 from pymongo import MongoClient
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
+from bson import ObjectId
 
 # MongoDB 연결 설정
 MONGO_URL = "mongodb://root:example@192.168.0.199:27017/?authSource=admin"
 DB_NAME = "test"
-COLLECTION_NAME = "routines_test"
+COLLECTION_NAME = "routines"
 USER_DATA_COLLECTION = "user_data"  # 사용자 데이터 컬렉션 추가
 
 class DatabaseHandler:
@@ -14,6 +15,25 @@ class DatabaseHandler:
         self.db = self.client[DB_NAME]
         self.collection = self.db[COLLECTION_NAME]
         self.user_data_collection = self.db[USER_DATA_COLLECTION]
+
+    def _convert_objectid(self, data):
+        """ObjectId를 문자열로 변환하는 헬퍼 함수"""
+        if isinstance(data, list):
+            return [self._convert_objectid(item) for item in data]
+        elif isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                if isinstance(value, ObjectId):
+                    result[key] = str(value)
+                elif isinstance(value, (dict, list)):
+                    result[key] = self._convert_objectid(value)
+                else:
+                    result[key] = value
+            return result
+        elif isinstance(data, ObjectId):
+            return str(data)
+        else:
+            return data
 
     def save_routine(self, routine_data: dict):
         try:
@@ -29,7 +49,8 @@ class DatabaseHandler:
 
     def get_routines_by_day(self, user_id: int, day: int):
         try:
-            return self.collection.find_one({"user_id": user_id, "day": day})
+            result = self.collection.find_one({"user_id": user_id, "day": day})
+            return self._convert_objectid(result) if result else None
         except Exception as e:
             print(f"MongoDB 조회 실패: {e}")
             return None
@@ -37,8 +58,14 @@ class DatabaseHandler:
     def get_user_routines(self, user_id: str) -> List[Dict]:
         """사용자의 모든 운동 루틴 조회"""
         try:
-            routines = list(self.collection.find({"user_id": user_id}).sort("day", 1))
-            return routines
+            # user_id를 정수로 변환하여 검색
+            try:
+                user_id_int = int(user_id)
+            except (ValueError, TypeError):
+                user_id_int = user_id  # 변환 실패 시 원본 사용
+            
+            routines = list(self.collection.find({"user_id": user_id_int}).sort("day", 1))
+            return self._convert_objectid(routines)
         except Exception as e:
             print(f"사용자 루틴 조회 실패: {e}")
             return []
@@ -46,7 +73,13 @@ class DatabaseHandler:
     def has_user_routines(self, user_id: str) -> bool:
         """사용자가 기존 운동 루틴을 가지고 있는지 확인"""
         try:
-            count = self.collection.count_documents({"user_id": user_id})
+            # user_id를 정수로 변환하여 검색
+            try:
+                user_id_int = int(user_id)
+            except (ValueError, TypeError):
+                user_id_int = user_id  # 변환 실패 시 원본 사용
+                
+            count = self.collection.count_documents({"user_id": user_id_int})
             return count > 0
         except Exception as e:
             print(f"사용자 루틴 존재 확인 실패: {e}")
@@ -55,7 +88,13 @@ class DatabaseHandler:
     def delete_user_routines(self, user_id: str) -> bool:
         """사용자의 모든 운동 루틴 삭제"""
         try:
-            result = self.collection.delete_many({"user_id": user_id})
+            # user_id를 정수로 변환하여 삭제
+            try:
+                user_id_int = int(user_id)
+            except (ValueError, TypeError):
+                user_id_int = user_id  # 변환 실패 시 원본 사용
+                
+            result = self.collection.delete_many({"user_id": user_id_int})
             return result.deleted_count > 0
         except Exception as e:
             print(f"사용자 루틴 삭제 실패: {e}")
@@ -64,7 +103,6 @@ class DatabaseHandler:
     def update_routine(self, routine_id: str, update_data: dict) -> bool:
         """특정 루틴 업데이트"""
         try:
-            from bson import ObjectId
             update_data['updated_at'] = datetime.now(timezone.utc)
             result = self.collection.update_one(
                 {"_id": ObjectId(routine_id)},
@@ -99,7 +137,7 @@ class DatabaseHandler:
                 query["data_type"] = data_type
             
             data = list(self.user_data_collection.find(query).sort("created_at", -1))
-            return data
+            return self._convert_objectid(data)
         except Exception as e:
             print(f"사용자 데이터 조회 실패: {e}")
             return []
@@ -111,7 +149,7 @@ class DatabaseHandler:
                 {"user_id": user_id, "data_type": data_type},
                 sort=[("created_at", -1)]
             )
-            return data
+            return self._convert_objectid(data) if data else None
         except Exception as e:
             print(f"최신 사용자 데이터 조회 실패: {e}")
             return None

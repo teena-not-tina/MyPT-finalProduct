@@ -1,8 +1,40 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-// 사용자 ID 가져오기 함수
+// 사용자 ID 생성/가져오기 함수 - 정수로 생성
 const getUserId = () => {
-  return sessionStorage.getItem('user_id');
+  let userId = sessionStorage.getItem('user_id');
+
+  if (!userId) {
+    // 정수 형태의 user_id 생성 (1-999999 범위)
+    userId = Math.floor(Math.random() * 999999) + 1;
+    sessionStorage.setItem('user_id', userId.toString());
+  }
+
+  // 문자열로 저장되었지만 정수로 파싱 가능한 값 반환
+  return userId;
+};
+
+// 또는 시간 기반 정수 ID 생성
+const generateIntegerUserId = () => {
+  // 현재 시간의 마지막 6자리 숫자 사용
+  const timestamp = Date.now();
+  const userId = parseInt(timestamp.toString().slice(-6));
+  sessionStorage.setItem('user_id', userId.toString());
+  return userId.toString();
+};
+
+// 기존 문자열 user_id를 정수로 변환 (만약 UUID 등을 사용했다면)
+const convertToIntegerUserId = () => {
+  let userId = sessionStorage.getItem('user_id');
+
+  if (userId && isNaN(parseInt(userId))) {
+    // 기존 ID가 정수가 아니면 새로 생성
+    const newUserId = Math.floor(Math.random() * 999999) + 1;
+    sessionStorage.setItem('user_id', newUserId.toString());
+    return newUserId.toString();
+  }
+
+  return userId || generateIntegerUserId();
 };
 
 // Header 컴포넌트
@@ -58,7 +90,7 @@ const sendMessage = async (message, sessionId, userId) => {
     }
 
     const data = await response.json();
-    
+
     if (!data.success) {
       throw new Error(data.error || '채팅 응답 실패');
     }
@@ -74,11 +106,11 @@ const uploadPDF = async (file, sessionId, userId) => {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     if (sessionId) {
       formData.append('session_id', sessionId);
     }
-    
+
     if (userId) {
       formData.append('user_id', userId);
     }
@@ -94,7 +126,7 @@ const uploadPDF = async (file, sessionId, userId) => {
     }
 
     const data = await response.json();
-    
+
     if (!data.success) {
       throw new Error(data.error || 'PDF 분석 실패');
     }
@@ -122,7 +154,7 @@ const resetSession = async (sessionId, userId) => {
     }
 
     const data = await response.json();
-    
+
     if (!data.success) {
       throw new Error(data.error || '세션 초기화 실패');
     }
@@ -169,7 +201,7 @@ const FileUpload = ({ onFileUpload, disabled }) => (
 // 텍스트 입력 컴포넌트
 const TextInput = ({ onSubmit, placeholder, disabled }) => {
   const [inputValue, setInputValue] = useState('');
-  
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (inputValue.trim()) {
@@ -204,11 +236,10 @@ const TextInput = ({ onSubmit, placeholder, disabled }) => {
 // 메시지 컴포넌트
 const MessageItem = ({ message, routineData }) => (
   <div className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-      message.sender === 'user' 
-        ? 'bg-blue-500 text-white' 
-        : 'bg-gray-200 text-gray-800'
-    }`}>
+    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender === 'user'
+      ? 'bg-blue-500 text-white'
+      : 'bg-gray-200 text-gray-800'
+      }`}>
       {message.type === 'routine' && message.sender === 'bot' ? (
         <div>
           <p className="whitespace-pre-wrap break-words mb-3">{message.text}</p>
@@ -274,7 +305,7 @@ const ChatbotPage = () => {
   const [apiConnected, setApiConnected] = useState(false);
   const [connectionChecking, setConnectionChecking] = useState(true);
   const [routineData, setRoutineData] = useState(null);
-  
+
   // UI 상태 (백엔드에서 제어)
   const [showButtons, setShowButtons] = useState(false);
   const [buttonOptions, setButtonOptions] = useState([]);
@@ -310,7 +341,7 @@ const ChatbotPage = () => {
     try {
       const userId = getUserId();
       const data = await resetSession(null, userId);
-      
+
       if (data.success) {
         setMessages(data.messages || []);
         setSessionId(data.session_id);
@@ -325,7 +356,7 @@ const ChatbotPage = () => {
     setMessages(data.messages || []);
     setSessionId(data.session_id);
     setRoutineData(data.routine_data || null);
-    
+
     // UI 제어 상태 업데이트
     setShowButtons(data.show_buttons || false);
     setButtonOptions(data.button_options || []);
@@ -342,7 +373,7 @@ const ChatbotPage = () => {
     const userId = getUserId();
     setInputMessage('');
     setIsLoading(true);
-    
+
     // UI 상태 초기화
     setShowButtons(false);
     setShowFileUpload(false);
@@ -350,7 +381,7 @@ const ChatbotPage = () => {
 
     try {
       const data = await sendMessage(messageToSend, sessionId, userId);
-      
+
       if (data.success) {
         processResponse(data);
       } else {
@@ -434,12 +465,12 @@ const ChatbotPage = () => {
     try {
       const userId = getUserId();
       const data = await resetSession(sessionId, userId);
-      
+
       if (data.success) {
         setMessages(data.messages || []);
         setSessionId(data.session_id);
         setRoutineData(null);
-        
+
         // UI 상태 초기화
         setShowButtons(false);
         setShowFileUpload(false);
@@ -546,22 +577,22 @@ const ChatbotPage = () => {
 
           {/* 동적 UI 영역 */}
           {showButtons && (
-            <ButtonGroup 
-              options={buttonOptions} 
-              onSelect={handleButtonSelect} 
+            <ButtonGroup
+              options={buttonOptions}
+              onSelect={handleButtonSelect}
               disabled={isLoading || isPdfAnalyzing}
             />
           )}
 
           {showFileUpload && (
-            <FileUpload 
-              onFileUpload={handlePdfUpload} 
+            <FileUpload
+              onFileUpload={handlePdfUpload}
               disabled={isPdfAnalyzing}
             />
           )}
 
           {showInput && (
-            <TextInput 
+            <TextInput
               onSubmit={handleTextInput}
               placeholder={inputPlaceholder}
               disabled={isLoading || isPdfAnalyzing}

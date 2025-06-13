@@ -1,5 +1,7 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import os
 import shutil
@@ -10,6 +12,7 @@ import asyncio
 import logging
 import traceback
 from typing import Optional
+from bson import ObjectId
 
 from config.settings import (
     OPENAI_API_KEY,
@@ -29,14 +32,34 @@ from modules.chat_session import session_manager, SessionState
 app = FastAPI()
 UPLOAD_DIR = create_upload_directory()
 
+# ObjectId를 JSON으로 직렬화하기 위한 커스텀 JSONResponse
+class CustomJSONResponse(JSONResponse):
+    def render(self, content) -> bytes:
+        def convert_objectid(obj):
+            if isinstance(obj, ObjectId):
+                return str(obj)
+            elif isinstance(obj, dict):
+                return {key: convert_objectid(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_objectid(item) for item in obj]
+            return obj
+        
+        content = convert_objectid(content)
+        return super().render(content)
+
 # 로거 설정
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# CORS 설정
+# CORS 설정 - 다른 컴퓨터에서 접근 허용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "http://192.168.0.*:3000",  # 같은 네트워크 내 모든 IP
+        "*"  # 개발 환경에서만 사용 (보안상 주의)
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,7 +91,7 @@ class ChatResponse(BaseModel):
 @app.get("/")
 async def root():
     """루트 엔드포인트"""
-    return {"message": "AI Fitness Coach API is running", "status": "healthy"}
+    return CustomJSONResponse({"message": "AI Fitness Coach API is running", "status": "healthy"})
 
 @app.get("/health")
 async def health_check():
@@ -77,18 +100,19 @@ async def health_check():
         status = analyzer.get_loading_status()
         user_vector_stats = analyzer.user_vector_store.get_collection_stats()
         
-        return {
+        response_data = {
             "status": "healthy",
             "ai_analyzer": status,
             "pdf_processor": True,
             "user_vector_store": user_vector_stats,
             "active_sessions": len(session_manager.sessions)
         }
+        return CustomJSONResponse(response_data)
     except Exception as e:
-        return {
+        return CustomJSONResponse({
             "status": "unhealthy",
             "error": str(e)
-        }
+        })
 
 @app.post("/api/chat")
 async def chat(data: ChatMessage):
@@ -104,16 +128,16 @@ async def chat(data: ChatMessage):
             user_id=data.user_id
         )
         
-        return response
+        return CustomJSONResponse(response)
         
     except Exception as e:
         logger.error(f"채팅 처리 중 오류: {str(e)}")
         logger.error(traceback.format_exc())
-        return {
+        return CustomJSONResponse({
             "success": False,
             "error": "일시적인 오류가 발생했습니다. 다시 시도해주세요.",
             "detail": str(e)
-        }
+        })
 
 @app.post("/api/inbody/analyze")
 async def analyze_inbody(file: UploadFile = File(...), session_id: str = None, user_id: str = None):
@@ -423,13 +447,14 @@ async def get_user_routines(user_id: str):
         routines = analyzer.db.get_user_routines(user_id)
         has_routines = analyzer.db.has_user_routines(user_id)
         
-        return {
+        response_data = {
             "success": True,
             "user_id": user_id,
             "has_routines": has_routines,
             "routines": routines,
             "total_days": len(routines)
         }
+        return CustomJSONResponse(response_data)
     except Exception as e:
         logger.error(f"사용자 루틴 조회 실패: {str(e)}")
         raise HTTPException(status_code=500, detail="사용자 루틴 조회에 실패했습니다.")
