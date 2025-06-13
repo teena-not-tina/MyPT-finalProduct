@@ -71,6 +71,21 @@ function useAuth() {
   return useContext(AuthContext);
 }
 
+// 인증되지 않은 사용자만 접근 가능한 라우트 (로그인, 회원가입 등)
+function PublicRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+  
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
+}
+
+// 인증된 사용자만 접근 가능한 라우트 (보호된 라우트)
+function PrivateRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+  
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+
 // API 호출 헬퍼 함수
 const apiCall = async (url, options = {}) => {
   const token = sessionStorage.getItem('access_token');
@@ -114,7 +129,7 @@ function Navigation() {
     <nav className="bg-white shadow-sm border-b p-4">
       <div className="flex justify-between items-center">
         <div className="flex space-x-4">
-          <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
+          <Link to="/" className="text-blue-600 hover:text-blue-800 font-medium">
             <img
               src="/img.png"
               alt="Home"
@@ -158,36 +173,132 @@ function App() {
   const onIngredientsChange = (newIngredients) => setIngredients(newIngredients);
   // ----------------------------------------------------------------------------------------------------------
 
+//   return (
+//     <AuthProvider>
+//       {/* <ChatbotProvider>   */}
+//         <Router>
+//           <div className="App min-h-screen bg-gray-50">
+//             <Navigation />
+//             <Routes>
+//               <Route path="/" element={<LandingPage />} />
+//               <Route path="/login" element={<LoginPage />} />
+//               <Route path="/register" element={<RegisterPage />} />
+//               <Route path="/dashboard" element={<DashboardPage />} />
+//               <Route path="/inbody" element={<InbodyFormPage />} />
+//               <Route path="/diet" element={<IngredientInputPage />} />
+//               <Route path="/diet/recommendation" element={<MenuRecommendationPage />} />
+//               <Route path="/routine" element={<RoutineOverviewPage />} />
+//               <Route path="/routine/camera" element={<ExerciseCameraPage />} />
+//               <Route path="/routine/detail" element={<RoutineDetailPage />} />
+//               <Route path="/chatbot" element={<ChatbotPage />} />
+//               <Route path="/chatbot/avatar" element={<ChatbotAvatarPage />} />
+//               <Route path="/cv" element={<CVMainPage />} />
+//               <Route path="/food-detection" element={<FoodDetection/>}/>
+//               <Route path="/image-uploader" element={<ImageUploader onImagesSelected={handleImagesSelected} />} />
+//               <Route path="/fridge-manager" element={<FridgeManager userId={userId} ingredients={ingredients} onIngredientsChange={onIngredientsChange} />} />
+//             </Routes>
+          
+//             {/* <ChatbotButton /> */}
+//             {/* <OverlayChatbot /> */}
+//           </div>
+//         </Router>
+//       {/* </ChatbotProvider>  ChatbotProvider 닫기 */}
+//     </AuthProvider>
+//   );
+// }
+
+// export default App;
+
   return (
     <AuthProvider>
-      {/* <ChatbotProvider>   */}
-        <Router>
-          <div className="App min-h-screen bg-gray-50">
-            <Navigation />
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/inbody" element={<InbodyFormPage />} />
-              <Route path="/diet" element={<IngredientInputPage />} />
-              <Route path="/diet/recommendation" element={<MenuRecommendationPage />} />
-              <Route path="/routine" element={<RoutineOverviewPage />} />
-              <Route path="/routine/camera" element={<ExerciseCameraPage />} />
-              <Route path="/routine/detail" element={<RoutineDetailPage />} />
-              <Route path="/chatbot" element={<ChatbotPage />} />
-              <Route path="/chatbot/avatar" element={<ChatbotAvatarPage />} />
-              <Route path="/cv" element={<CVMainPage />} />
-              <Route path="/food-detection" element={<FoodDetection/>}/>
-              <Route path="/image-uploader" element={<ImageUploader onImagesSelected={handleImagesSelected} />} />
-              <Route path="/fridge-manager" element={<FridgeManager userId={userId} ingredients={ingredients} onIngredientsChange={onIngredientsChange} />} />
-            </Routes>
-          
-            {/* <ChatbotButton /> */}
-            {/* <OverlayChatbot /> */}
-          </div>
-        </Router>
-      {/* </ChatbotProvider>  ChatbotProvider 닫기 */}
+      <Router>
+        <div className="App min-h-screen bg-gray-50">
+          <Navigation />
+          <Routes>
+            {/* 공개 라우트 */}
+            <Route path="/" element={<LandingPage />} />
+            
+            {/* 인증되지 않은 사용자만 접근 가능한 라우트 */}
+            <Route path="/login" element={
+              <PublicRoute>
+                <LoginPage />
+              </PublicRoute>
+            } />
+            <Route path="/register" element={
+              <PublicRoute>
+                <RegisterPage />
+              </PublicRoute>
+            } />
+            
+            {/* 인증된 사용자만 접근 가능한 라우트 */}
+            <Route path="/dashboard" element={
+              <PrivateRoute>
+                <DashboardPage />
+              </PrivateRoute>
+            } />
+            <Route path="/inbody" element={
+              <PrivateRoute>
+                <InbodyFormPage />
+              </PrivateRoute>
+            } />
+            <Route path="/diet" element={
+              <PrivateRoute>
+                <IngredientInputPage />
+              </PrivateRoute>
+            } />
+            <Route path="/diet/recommendation" element={
+              <PrivateRoute>
+                <MenuRecommendationPage />
+              </PrivateRoute>
+            } />
+            <Route path="/routine" element={
+              <PrivateRoute>
+                <RoutineOverviewPage />
+              </PrivateRoute>
+            } />
+            <Route path="/routine/camera" element={
+              <PrivateRoute>
+                <ExerciseCameraPage />
+              </PrivateRoute>
+            } />
+            <Route path="/routine/detail" element={
+              <PrivateRoute>
+                <RoutineDetailPage />
+              </PrivateRoute>
+            } />
+            <Route path="/chatbot" element={
+              <PrivateRoute>
+                <ChatbotPage />
+              </PrivateRoute>
+            } />
+            <Route path="/chatbot/avatar" element={
+              <PrivateRoute>
+                <ChatbotAvatarPage />
+              </PrivateRoute>
+            } />
+            <Route path="/cv" element={
+              <PrivateRoute>
+                <CVMainPage />
+              </PrivateRoute>
+            } />
+            <Route path="/food-detection" element={
+              <PrivateRoute>
+                <FoodDetection/>
+              </PrivateRoute>
+            }/>
+            <Route path="/image-uploader" element={
+              <PrivateRoute>
+                <ImageUploader onImagesSelected={handleImagesSelected} />
+              </PrivateRoute>
+            } />
+            <Route path="/fridge-manager" element={
+              <PrivateRoute>
+                <FridgeManager userId={userId} ingredients={ingredients} onIngredientsChange={onIngredientsChange} />
+              </PrivateRoute>
+            } />
+          </Routes>
+        </div>
+      </Router>
     </AuthProvider>
   );
 }

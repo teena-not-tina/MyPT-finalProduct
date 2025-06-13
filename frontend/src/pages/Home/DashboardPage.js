@@ -445,8 +445,8 @@ return (
               />
             </div>
             {/* 스타일 태그 */}
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 w-full">
-              <span className="inline-block bg-purple-100 text-purple-800 text-sm px-4 py-1 rounded-full text-center">
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 w-full text-center">
+              <span className="inline-block bg-purple-100 text-purple-800 text-sm px-4 py-1 rounded-full">
                 {dashboardData.tag || 'Unknown'} 스타일
               </span>
             </div>
