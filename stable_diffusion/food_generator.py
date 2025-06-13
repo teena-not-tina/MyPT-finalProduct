@@ -14,6 +14,16 @@ DB_NAME = "test"
 
 router = APIRouter()
 
+CHARACTER_TAG_MAPPING = {
+    1: "very fat",
+    2: "fat", 
+    3: "a little fat",
+    4: "average",
+    5: "slightly muscular",
+    6: "muscular",
+    7: "very muscular"
+}
+
 def delete_food_data(user_id):
     try:
         time.sleep(60)
@@ -68,7 +78,7 @@ def save_food_image(user_id, image_base64, previous_image=None):
 
 def generate_image_from_comfyui(prompt, user_id):
     try:
-        COMFYUI_API_URL = os.getenv('COMFYUI_API_URL', 'http://127.0.0.1:8188')
+        COMFYUI_API_URL = "http://192.168.0.21:8188"
         start_time = time.time()
         comfyui_output = os.path.abspath(r"C:\Users\702-17\Documents\ComfyUI\output")
         print(f"이미지 생성 시작 - 프롬프트: {prompt}")
@@ -104,10 +114,49 @@ def generate_image_from_comfyui(prompt, user_id):
             "scheduler": "karras",
             "denoise": 0.45
         })
+
+        time.sleep(1)
+        
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        user_doc = db.users.find_one({'user_id': user_id})
+
+        if not user_doc or 'level' not in user_doc:
+            raise Exception(f"해당 user_id에 대한 level 정보가 없습니다: {user_id}")
+
+        level = user_doc['level']
+        image_tag = CHARACTER_TAG_MAPPING.get(level)
+
+        if not image_tag:
+            raise Exception(f"알 수 없는 level 값: {level}")
+
+        time
+        # 2. 해당 태그의 이미지 조회
+        image_doc = db.user_image.find_one({'user_id': user_id})
+        if not image_doc or 'images' not in image_doc or image_tag not in image_doc['images']:
+            raise Exception(f"user_image에 해당하는 {image_tag} 이미지가 없습니다.")
+
+        image_base64 = image_doc['images'][image_tag]['image_data']
+
+        image_tag = image_tag.replace(" ", "_")
+
+        # 3. 임시 파일로 저장
+        image_binary = base64.b64decode(image_base64)
+        temp_image_path = os.path.join(comfyui_output, f"input_{user_id}_{image_tag}.png")
+        with open(temp_image_path, "wb") as f:
+            f.write(image_binary)
+
+        time.sleep(2)
+
+        # 4. ComfyUI 워크플로우에 설정
+        workflow["9"]["inputs"]["image"] = temp_image_path
+
         print(f"[사용된 프롬프트]: {food_prompt.strip()}")
         print(f"[사용된 네거티브 프롬프트]: {negative_prompt.strip()}")
         response = requests.post(f"{COMFYUI_API_URL}/prompt", json={"prompt": workflow})
         if not response.ok:
+            print("ComfyUI 응답 상태:", response.status_code)
+            print("ComfyUI 응답 내용:", response.text)  # 이 줄이 중요
             raise Exception(f"ComfyUI API 오류: {response.status_code}")
         prompt_id = response.json()['prompt_id']
         print(f"프롬프트 전송 완료. ID: {prompt_id}")
@@ -162,11 +211,19 @@ async def generate_food(request: Request):
     try:
         data = await request.json()
         food = data.get("food")
-        # 세션 또는 쿠키에서 user_id 추출 (여기서는 예시로 sessionStorage에서 프론트가 헤더로 user_id를 보낸다고 가정)
-        user_id = request.headers.get("user-id")
-        if not user_id:
+        
+        # user_id 헤더 검증 강화
+        user_id_str = request.headers.get("user-id")
+        print(f"받은 user_id 헤더: '{user_id_str}'")
+        
+        if not user_id_str or user_id_str.strip() == "":
             raise HTTPException(status_code=400, detail="user_id가 필요합니다.")
-        user_id = int(user_id)
+        
+        try:
+            user_id = int(user_id_str.strip())
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"user_id는 숫자여야 합니다: {user_id_str}")
+        
         print(f"API 요청 받음: {food}, user_id: {user_id}")
         image_base64 = generate_image_from_comfyui(food, user_id)
         return {"image_base64": image_base64}
@@ -177,19 +234,3 @@ async def generate_food(request: Request):
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "message": "Food Generator API is running"}
-
-# @router.post("/generate-food")
-# async def generate_food(request: FoodRequest):
-#     try:
-#         food = request.food
-#         user_id = request.user_id
-#         print(f"API 요청 받음: {food}, user_id: {user_id}")
-#         image_base64 = generate_image_from_comfyui(food, user_id)
-#         return {"image_base64": image_base64}
-#     except Exception as e:
-#         print(f"API 오류: {str(e)}")
-#         raise HTTPException(status_code=500, detail=str(e))
-
-# @router.get("/health")
-# async def health_check():
-#     return {"status": "ok", "message": "Food Generator API is running"}

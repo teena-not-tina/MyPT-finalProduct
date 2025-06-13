@@ -45,7 +45,7 @@ const UserDashboard = () => {
   const getUserId = () => {
     return sessionStorage.getItem('user_id');
   };
-
+  
   let alertShown = false;
 
 const fetchWithAuth = async (url, options = {}) => {
@@ -437,7 +437,7 @@ return (
         {dashboardData?.has_image ? (
           // 이미지가 있는 경우 - 파란 원 안에 이미지 표시
           <div className="relative">
-            <div className="w-80 h-80 bg-blue-400 flex items-center justify-center shadow-lg rounded-full"  onClick={() => navigate('/chatbot/avatar')}>
+            <div className="w-80 h-80 bg-blue-400 flex items-center justify-center shadow-lg rounded-full" onClick={() => navigate('/chatbot/avatar')}>
               <img
                 src={`data:${dashboardData.content_type};base64,${dashboardData.image_data}`}
                 alt={`AI 생성 아바타 (${dashboardData.tag || 'Unknown'} 스타일)`}
@@ -445,7 +445,7 @@ return (
               />
             </div>
             {/* 스타일 태그 */}
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 w-48">
+            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 w-full">
               <span className="inline-block bg-purple-100 text-purple-800 text-sm px-4 py-1 rounded-full text-center">
                 {dashboardData.tag || 'Unknown'} 스타일
               </span>

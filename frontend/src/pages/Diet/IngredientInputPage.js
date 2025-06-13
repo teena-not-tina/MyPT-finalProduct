@@ -2,32 +2,39 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../Shared/Header';
+import { generateFoodImage } from './foodmake';
 
 function IngredientInputPage() {
   const [ingredientText, setIngredientText] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('입력된 재료:', ingredientText);
-    alert(`입력된 재료: ${ingredientText} (나중에 백엔드 처리)`);
-    navigate('/diet/menu');
+    setLoading(true);
+    try {
+      const imageBase64 = await generateFoodImage(ingredientText);
+      alert('이미지 생성 및 저장 완료!');
+      navigate('/dashboard');
+    } catch (error) {
+      alert('이미지 생성 실패: ' + (error.message || error));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header title="식단 기록" showBackButton={true} />
-      
       <div className="px-4 py-6 max-w-md mx-auto">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
             오늘 먹은 것을 기록해주세요
           </h2>
-          
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label 
-                htmlFor="ingredientInput" 
+              <label
+                htmlFor="ingredientInput"
                 className="block text-sm font-medium text-gray-700"
               >
                 재료 또는 음식명 입력:
@@ -42,16 +49,15 @@ function IngredientInputPage() {
                 required
               />
             </div>
-            
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              disabled={loading}
             >
-              기록 완료
+              {loading ? '이미지 생성 중...' : '기록 완료'}
             </button>
           </form>
-          
-          {/* <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
             <p className="text-sm text-blue-700 text-center space-x-4">
               <span className="inline-flex items-center">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -69,7 +75,7 @@ function IngredientInputPage() {
                 기능은 나중에 추가됩니다.
               </span>
             </p>
-          </div> */}
+          </div>
         </div>
       </div>
     </div>

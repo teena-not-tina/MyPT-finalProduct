@@ -38,7 +38,7 @@ app.include_router(contact_comfyui.router, prefix="")
 app.include_router(character_update.router, prefix="")
 app.include_router(get_current_img.router, prefix="")
 app.include_router(routes.router, prefix="")
-app.include_router(food_generator, prefix="")
+app.include_router(food_generator.router, prefix="")
 
 @app.get("/")
 def root(request: Request) -> dict[str, str]:

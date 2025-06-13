@@ -96,7 +96,7 @@
   },
   "9": {
     "inputs": {
-      "image": "C:\\Users\\702-18\\ComfyUI_Stable\\ComfyUI_windows_portable\\ComfyUI\\output\\result_1285034732_00003_.png"
+      "image": "D:\\student\\finalproject\\frontend\\public\\base_images\\proteengrayal.png"
     },
     "class_type": "LoadImage",
     "_meta": {

@@ -447,22 +447,6 @@ async def generate_images(request: GenerationRequest, user_id: int = Depends(ver
         raise HTTPException(status_code=404, detail="Base image not found")
     
     try:
-        # test DB의 users 컬렉션에 user_id 문서가 없으면 생성
-        # user_stats_db = client.test  # user_stats 데이터베이스
-        # user_stat_col = user_stats_db.users  
-
-        # existing_stat = await user_stat_col.find_one({"email": user_id})
-        # if not existing_stat:
-        #     now = datetime.now()
-        #     await user_stat_col.insert_one({
-        #         "email": user_id,
-        #         "progress": 0,
-        #         "level": 4,
-        #         "created_at": now,
-        #         "updated_at": now,
-        #     })
-        #     print(f"user_stat 컬렉션에 새 문서 생성: {user_id}")
-
         # 사용자 이미지 찾기 (특수문자가 제거된 파일명으로 검색)
         safe_user_id = sanitize_filename(user_id)
         user_files = [f for f in os.listdir(UPLOAD_DIR) if f.startswith(safe_user_id)]
@@ -596,42 +580,3 @@ async def get_user_profile(user_id: int = Depends(verify_token)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
-# # 로그인 엔드포인트 (임시)
-# @router.post("/api/auth/login")
-# async def login(login_data: dict):
-#     """로그인 처리 (임시)"""
-#     # 실제로는 사용자 인증 로직이 들어가야 함
-#     user_id = login_data.get("user_id")
-#     password = login_data.get("password")
-    
-#     if not user_id or not password:
-#         raise HTTPException(status_code=400, detail="User ID and password required")
-    
-#     # 여기서 실제 사용자 인증을 수행
-#     # 예시로 간단히 처리
-#     if password == "test":  # 실제 환경에서는 해시된 비밀번호 비교
-#         # JWT 토큰 생성
-#         token = jwt.encode({"user_id": user_id}, SECRET_KEY, algorithm=ALGORITHM)
-#         return {
-#             "access_token": token,
-#             "token_type": "bearer",
-#             "user_id": user_id
-#         }
-#     else:
-#         raise HTTPException(status_code=401, detail="Invalid credentials")
-
-# @router.get("/download-image/{filename}")
-# async def download_image(filename: str):
-#     """생성된 이미지 다운로드"""
-#     # ComfyUI output 디렉토리에서 이미지 가져오기
-#     comfy_output_dir = "ComfyUI/output"  # ComfyUI 설치 경로에 맞게 수정
-#     image_path = os.path.join(comfy_output_dir, filename)
-    
-#     if os.path.exists(image_path):
-#         async with aiofiles.open(image_path, 'rb') as f:
-#             image_data = await f.read()
-#             image_b64 = base64.b64encode(image_data).decode()
-#             return {"image_data": image_b64}
-#     else:
-#         raise HTTPException(status_code=404, detail="Image not found")

@@ -45,10 +45,6 @@ CHARACTER_TAG_MAPPING = {
     7: "very muscular"
 }
 
-
-
-
-
 async def get_database_connection():
     """MongoDB 연결을 초기화하고 반환"""
     global client, db_user_image, db_user_stats
