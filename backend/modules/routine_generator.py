@@ -12,6 +12,7 @@ import openai
 from config.settings import OPENAI_API_KEY, SYSTEM_PROMPT, GPT_MODEL, GPT_TEMPERATURE, CHATBOT_PROMPT         
 import glob
 from modules.vector_store import VectorStore
+from modules.user_vector_store import UserVectorStore  # 새로 추가
 from openai.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
@@ -32,9 +33,16 @@ class AIAnalyzer:
         self.conversation_history = []
         self.db = DatabaseHandler()
         
-        # VectorStore 초기화
+        # 기존 VectorStore 초기화 (일반 피트니스 지식)
         self.vector_store = VectorStore(
             collection_name="fitness_knowledge_base",
+            openai_api_key=OPENAI_API_KEY
+        )
+        
+        # 사용자 전용 VectorStore 초기화 (개인 데이터)
+        self.user_vector_store = UserVectorStore(
+            collection_name="user_personal_data",
+            persist_directory="./user_chroma_db",
             openai_api_key=OPENAI_API_KEY
         )
         
@@ -418,171 +426,6 @@ class AIAnalyzer:
         except:
             pass
         return None
-
-    async def analyze_inbody_data_async(self, inbody_text: str) -> Dict[str, Any]:
-        """비동기 InBody 데이터 분석 - 오류 수정"""
-        loop = asyncio.get_event_loop()
-        
-        try:
-            return await loop.run_in_executor(
-                self._executor,
-                self.analyze_inbody_data_sync_fixed,  # 수정된 메서드 사용
-                inbody_text,
-                True
-            )
-        except Exception as e:
-            logger.error(f"인바디 분석 실패: {str(e)}")
-            raise RuntimeError(f"인바디 분석 실패: {str(e)}")
-
-    def analyze_inbody_data_sync_fixed(self, inbody_text: str, use_vector_search: bool = True) -> Dict[str, Any]:
-        """수정된 동기식 InBody 데이터 분석"""
-        try:
-            # VectorDB 컨텍스트 검색
-            relevant_context = ""
-            if use_vector_search and self._documents_loaded:
-                relevant_context = self._get_relevant_context_for_inbody(inbody_text)
-                
-            # 간단한 운동 루틴 텍스트 생성 (JSON 파싱 오류 방지)
-            system_prompt = f"""
-            당신은 전문 피트니스 코치입니다. 인바디 데이터를 바탕으로 맞춤형 운동 루틴을 제안해주세요.
-            
-            다음과 같은 형식으로 응답해주세요:
-            
-            ## 🎯 분석 결과
-            [사용자의 신체 상태 분석]
-            
-            ## 💪 추천 운동 루틴
-            
-            ### 1주차 운동 계획
-            
-            **1일차 - 상체 운동**
-            - 푸시업: 3세트 x 10-15회
-            - 덤벨 로우: 3세트 x 12회
-            - 플랭크: 3세트 x 30초
-            
-            **2일차 - 하체 운동**
-            - 스쿼트: 3세트 x 15회
-            - 런지: 3세트 x 10회 (양쪽)
-            - 카프 레이즈: 3세트 x 15회
-            
-            **3일차 - 전신 운동**
-            - 버피: 3세트 x 8회
-            - 마운틴 클라이머: 3세트 x 20회
-            - 데드버그: 3세트 x 10회 (양쪽)
-            
-            ## 📝 주의사항
-            [운동 시 주의할 점들]
-            
-            ## 🎯 목표 달성을 위한 팁
-            [추가 조언]
-            
-            참고 자료:
-            {relevant_context}
-            """
-            
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"다음 InBody 검사 결과를 분석하여 운동 루틴을 추천해주세요:\n\n{inbody_text}"}
-            ]
-
-            client = OpenAI(api_key=OPENAI_API_KEY)
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=2000
-            )
-
-            result = response.choices[0].message.content
-            
-            # 단순한 딕셔너리 반환 (JSON 파싱 오류 방지)
-            return {
-                'success': True,
-                'routine_text': result,
-                'analysis_type': 'text_based'
-            }
-                
-        except Exception as e:
-            logger.error(f"인바디 분석 실패: {str(e)}")
-            raise RuntimeError(f"인바디 분석 실패: {str(e)}")
-
-    # 기존 analyze_inbody_data_sync 메서드는 그대로 유지 (하위 호환성)
-    def analyze_inbody_data_sync(self, inbody_text: str, use_vector_search: bool = True) -> Dict[str, Any]:
-        """기존 동기식 InBody 데이터 분석 (하위 호환성)"""
-        try:
-            # VectorDB 컨텍스트 검색
-            relevant_context = ""
-            if use_vector_search and self._documents_loaded:
-                relevant_context = self._get_relevant_context_for_inbody(inbody_text)
-                
-            # 시스템 프롬프트 구성
-            system_prompt = f"""
-            인바디 데이터를 분석하여 상세한 운동 루틴을 JSON 형식으로 생성해주세요.
-            
-            참고 자료:
-            {relevant_context}
-            """
-            
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"다음 InBody 검사 결과를 분석해주세요:\n\n{inbody_text}"}
-            ]
-
-            client = OpenAI(api_key=OPENAI_API_KEY)
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=2000
-            )
-
-            result = response.choices[0].message.content
-            
-            # JSON 파싱 및 데이터베이스 저장 로직
-            try:
-                routines = []
-                
-                # JSON 추출 시도
-                json_data = self._extract_and_parse_json(result)
-                if not json_data:
-                    json_data = json.loads(result)
-                
-                if isinstance(json_data, list):
-                    for routine in json_data:
-                        if 'day' in routine:  # 'day' 키 존재 확인
-                            day_routine = {
-                                'user_id': 1,
-                                'day': routine['day'],
-                                'title': routine.get('title', f"Day {routine['day']} Workout"),
-                                'exercises': routine.get('exercises', []),
-                                'created_at': datetime.now(timezone.utc).isoformat()
-                            }
-                            saved_id = self.db.save_routine(day_routine)
-                            if saved_id:
-                                display_routine = {
-                                    **day_routine,
-                                    '_id': str(saved_id),
-                                    'created_at': day_routine['created_at']
-                                }
-                                routines.append(display_routine)
-                
-                return {
-                    'success': True,
-                    'routines': sorted(routines, key=lambda x: x.get('day', 0))
-                }
-                
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.error(f"JSON 파싱 또는 키 오류: {str(e)}")
-                # JSON 파싱 실패 시 텍스트로 반환
-                return {
-                    'success': True,
-                    'routine_text': result,
-                    'analysis_type': 'text_fallback'
-                }
-
-        except Exception as e:
-            logger.error(f"인바디 분석 실패: {str(e)}")
-            raise RuntimeError(f"인바디 분석 실패: {str(e)}")
     
     def _get_relevant_context_for_inbody(self, inbody_text: str) -> str:
         """InBody 데이터 기반 관련 컨텍스트 검색"""
@@ -653,10 +496,11 @@ class AIAnalyzer:
             return f"죄송합니다. 일시적인 오류가 발생했습니다. 다시 시도해주세요."
     
     async def chat_with_bot_async(self, user_message: str, use_vector_search: bool = True) -> str:
-        """비동기 챗봇 대화 - 개선"""
+        """비동기 챗봇 대화 - 사용자 컨텍스트 통합"""
         try:
             additional_context = ""
             
+            # 일반 피트니스 지식 검색
             if use_vector_search and self._documents_loaded:
                 additional_context = self._get_relevant_context_for_chat(user_message)
             
@@ -753,11 +597,12 @@ class AIAnalyzer:
             return {"value": answer, "unit": None, "normalized": False}
     
     def _create_routine_system_prompt(self, user_data: Dict[str, Any]) -> str:
-        """운동 루틴 시스템 프롬프트 생성"""
+        """운동 루틴 시스템 프롬프트 생성 - 사용자 컨텍스트 포함"""
         inbody_data = user_data.get("inbody", {})
         preferences = user_data.get("preferences", {})
+        user_context = user_data.get("user_context", "")  # 사용자 컨텍스트 추가
         
-        return f"""
+        base_prompt = f"""
         다음 정보를 바탕으로 맞춤형 운동 루틴을 생성해주세요:
 
         [인바디 정보]
@@ -765,21 +610,36 @@ class AIAnalyzer:
 
         [운동 선호도]
         {json.dumps(preferences, ensure_ascii=False, indent=2)}
-
+        """
+        
+        # 사용자 컨텍스트가 있으면 추가
+        if user_context:
+            base_prompt += f"""
+        
+        [사용자 개인 데이터 컨텍스트]
+        {user_context}
+        
+        위의 개인 데이터를 참고하여 더욱 개인화된 운동 루틴을 제공해주세요.
+        """
+        
+        base_prompt += """
         다음 형식으로 응답해주세요:
         1. 전반적인 분석 및 권장사항
         2. 주간 운동 계획
         3. 각 운동별 세부 지침 (세트, 반복 횟수, 휴식 시간)
         4. 주의사항
         """
+        
+        return base_prompt
     
     async def generate_enhanced_routine_async(self, user_data: Dict[str, Any]) -> str:
-        """비동기 향상된 운동 루틴 생성 - MongoDB 저장용 JSON 형태"""
+        """비동기 향상된 운동 루틴 생성 - 사용자 벡터DB 활용"""
         try:
             # 사용자 데이터 검증
             inbody = user_data.get("inbody", {})
             preferences = user_data.get("preferences", {})
-            user_id = user_data.get("user_id")  # user_id 추출
+            user_id = user_data.get("user_id")
+            user_context = user_data.get("user_context", "")  # 사용자 컨텍스트
             
             # 필수 필드 확인
             required_fields = ["gender", "age", "height", "weight"]
@@ -787,11 +647,18 @@ class AIAnalyzer:
                 if field not in inbody:
                     raise ValueError(f"필수 인바디 정보 누락: {field}")
             
-            # VectorDB 컨텍스트 검색
-            relevant_context = ""
+            # 일반 피트니스 지식 VectorDB 컨텍스트 검색
+            general_context = ""
             if self._documents_loaded:
                 search_query = f"운동 루틴 {inbody['gender']} {preferences.get('goal', '')} {preferences.get('experience_level', '')}"
-                relevant_context = self.vector_store.get_relevant_context(search_query, max_context_length=1000)
+                general_context = self.vector_store.get_relevant_context(search_query, max_context_length=1000)
+            
+            # 전체 컨텍스트 구성
+            combined_context = ""
+            if user_context:
+                combined_context += f"개인 데이터: {user_context}\n\n"
+            if general_context:
+                combined_context += f"일반 지식: {general_context}"
             
             # Function Calling을 사용한 구조화된 운동 루틴 생성
             response = await self.client.chat.completions.create(
@@ -813,7 +680,7 @@ class AIAnalyzer:
                     - 부상 여부: {preferences.get('injury_status', '없음')}
                     - 운동 시간: {preferences.get('available_time', '주 3회')}
                     
-                    참고 자료: {relevant_context}
+                    {f"참고 자료: {combined_context}" if combined_context else ""}
                     
                     반드시 다음 JSON 형태로 4일간의 운동 루틴을 생성해주세요:
                     [
@@ -856,6 +723,7 @@ class AIAnalyzer:
                     4. reps(반복횟수), weight(중량), time(시간) 중 해당하는 것만 포함
                     5. completed는 항상 false로 설정
                     6. 사용자의 경험 수준과 목표에 맞는 적절한 중량과 횟수 설정
+                    7. 개인 데이터와 일반 지식을 모두 활용하여 최적화된 루틴 생성
                     """
                 }, {
                     "role": "user", 
@@ -947,6 +815,18 @@ class AIAnalyzer:
                 if not saved_routines:
                     raise ValueError("운동 루틴을 데이터베이스에 저장할 수 없습니다.")
                 
+                # 사용자 벡터DB에 운동 진행 상황 초기화
+                if user_id and user_id != "None" and user_id != "null":
+                    try:
+                        progress_data = {
+                            'total_days': len(saved_routines),
+                            'completion_rate': 0,
+                            'created_routines': [r['day'] for r in saved_routines]
+                        }
+                        self.user_vector_store.add_user_progress(user_id, progress_data)
+                    except Exception as e:
+                        logger.error(f"진행 상황 초기화 실패: {str(e)}")
+                
                 # 성공 응답 생성
                 return {
                     'success': True,
@@ -1021,6 +901,11 @@ class AIAnalyzer:
     **맞춤 운동 계획:**
     사용자의 신체 조건과 목표를 고려하여 4일간의 체계적인 운동 루틴을 설계했습니다.
     {preferences.get('goal', '건강 유지')} 목표에 최적화된 운동 강도와 볼륨으로 구성되었습니다.
+    
+    **개인화 요소:**
+    - 개인 데이터 히스토리를 활용한 맞춤 추천
+    - 과거 운동 경험과 선호도 반영
+    - 지속 가능한 운동 강도 설정
             """.strip()
             
             return analysis
@@ -1035,12 +920,6 @@ class AIAnalyzer:
     사용자의 목표({preferences.get('goal', '건강 유지')})에 맞는 4일간의 운동 루틴이 생성되었습니다.
     {preferences.get('experience_level', '보통')} 수준에 적합한 운동 강도로 구성되었습니다.
             """.strip()
-            
-            return analysis
-            
-        except Exception as e:
-            logger.error(f"분석 텍스트 생성 실패: {str(e)}")
-            return "개인 맞춤 운동 루틴이 생성되었습니다."
 
     async def _generate_fallback_routine_text(self, user_data: Dict[str, Any]) -> str:
         """오류 발생 시 기본 텍스트 형태 운동 루틴 생성"""
@@ -1123,9 +1002,12 @@ class AIAnalyzer:
     def get_conversation_summary(self) -> Dict[str, Any]:
         """대화 요약 정보 반환"""
         vector_stats = {}
+        user_vector_stats = {}
+        
         try:
             if self._documents_loaded:
                 vector_stats = self.vector_store.get_collection_stats()
+            user_vector_stats = self.user_vector_store.get_collection_stats()
         except Exception as e:
             logger.error(f"벡터 스토어 통계 조회 실패: {e}")
             
@@ -1133,7 +1015,8 @@ class AIAnalyzer:
             "message_count": len(self.conversation_history),
             "has_recommendation": len(self.conversation_history) > 2,
             "last_recommendation": self.conversation_history[1]["content"] if len(self.conversation_history) > 1 else None,
-            "vector_store_stats": vector_stats,
+            "general_vector_store_stats": vector_stats,
+            "user_vector_store_stats": user_vector_stats,
             "loading_status": self.get_loading_status()
         }
     

@@ -22,6 +22,7 @@ from config.settings import (
 from modules.pdf_processor import PDFProcessor
 from modules.routine_generator import AIAnalyzer
 from modules.vector_store import VectorStore
+from modules.user_vector_store import UserVectorStore  # 새로 추가
 from modules.utils import validate_uploaded_file, create_upload_directory, save_uploaded_file
 from modules.chat_session import session_manager, SessionState
 
@@ -49,7 +50,7 @@ pdf_processor = PDFProcessor()
 class ChatMessage(BaseModel):
     message: str
     session_id: Optional[str] = None
-    user_id: Optional[str] = None  # 사용자 ID 필드 추가
+    user_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     success: bool
@@ -57,7 +58,11 @@ class ChatResponse(BaseModel):
     messages: list
     latest_message: dict
     session_info: dict
+    show_buttons: Optional[bool] = False
+    button_options: Optional[list] = None
     show_file_upload: Optional[bool] = False
+    show_input: Optional[bool] = False
+    input_placeholder: Optional[str] = None
     routine_data: Optional[list] = None
 
 @app.get("/")
@@ -70,10 +75,13 @@ async def health_check():
     """헬스 체크"""
     try:
         status = analyzer.get_loading_status()
+        user_vector_stats = analyzer.user_vector_store.get_collection_stats()
+        
         return {
             "status": "healthy",
             "ai_analyzer": status,
             "pdf_processor": True,
+            "user_vector_store": user_vector_stats,
             "active_sessions": len(session_manager.sessions)
         }
     except Exception as e:
@@ -93,19 +101,10 @@ async def chat(data: ChatMessage):
             session_id=data.session_id,
             message=data.message,
             analyzer=analyzer,
-            user_id=data.user_id  # user_id 전달
+            user_id=data.user_id
         )
         
         return response
-        
-    except Exception as e:
-        logger.error(f"채팅 처리 중 오류: {str(e)}")
-        logger.error(traceback.format_exc())
-        return {
-            "success": False,
-            "error": "일시적인 오류가 발생했습니다. 다시 시도해주세요.",
-            "detail": str(e)
-        }
         
     except Exception as e:
         logger.error(f"채팅 처리 중 오류: {str(e)}")
@@ -157,6 +156,14 @@ async def analyze_inbody(file: UploadFile = File(...), session_id: str = None, u
             
             # 구조화된 인바디 데이터 추출
             inbody_data = await extract_inbody_data_structured(inbody_text)
+            
+            # 사용자 벡터DB에 인바디 데이터 저장
+            if user_id:
+                try:
+                    analyzer.user_vector_store.add_user_inbody_data(user_id, inbody_data)
+                    logger.info(f"사용자 {user_id}의 인바디 데이터를 벡터DB에 저장완료")
+                except Exception as e:
+                    logger.error(f"인바디 데이터 벡터DB 저장 실패: {str(e)}")
             
             # 세션 매니저를 통해 인바디 데이터 처리 (user_id 전달)
             response = await session_manager.process_inbody_pdf(session_id, inbody_data, user_id)
@@ -299,11 +306,13 @@ async def reset_session(data: dict):
     """세션 초기화 (새로운 대화 시작)"""
     try:
         session_id = data.get("session_id")
+        user_id = data.get("user_id")
+        
         if session_id:
             session_manager.delete_session(session_id)
         
         # 새 세션 생성
-        new_session = session_manager.get_or_create_session()
+        new_session = session_manager.get_or_create_session(user_id=user_id)
         
         return {
             "success": True,
@@ -327,10 +336,14 @@ async def get_sessions_stats():
             state = session.state.value
             states_count[state] = states_count.get(state, 0) + 1
         
+        # 사용자 벡터DB 통계
+        user_vector_stats = analyzer.user_vector_store.get_collection_stats()
+        
         return {
             "success": True,
             "total_sessions": total_sessions,
             "states_distribution": states_count,
+            "user_vector_store_stats": user_vector_stats,
             "timestamp": logger.handlers[0].format if logger.handlers else None
         }
     except Exception as e:
@@ -358,6 +371,88 @@ async def cleanup_old_sessions():
     except Exception as e:
         logger.error(f"세션 정리 실패: {str(e)}")
         raise HTTPException(status_code=500, detail="세션 정리에 실패했습니다.")
+
+# 사용자 데이터 관리 API 추가
+@app.get("/api/user/{user_id}/data")
+async def get_user_data(user_id: str, data_type: str = None):
+    """사용자 데이터 조회"""
+    try:
+        # MongoDB에서 사용자 데이터 조회
+        user_data = analyzer.db.get_user_data(user_id, data_type)
+        
+        # 벡터DB에서 사용자 컨텍스트 조회
+        user_context = analyzer.user_vector_store.get_user_latest_data(user_id, data_type)
+        
+        return {
+            "success": True,
+            "user_id": user_id,
+            "mongodb_data": user_data,
+            "vector_context": user_context
+        }
+    except Exception as e:
+        logger.error(f"사용자 데이터 조회 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="사용자 데이터 조회에 실패했습니다.")
+
+@app.delete("/api/user/{user_id}/data")
+async def delete_user_data(user_id: str, data_type: str = None):
+    """사용자 데이터 삭제"""
+    try:
+        # 벡터DB에서 사용자 데이터 삭제
+        vector_deleted = analyzer.user_vector_store.delete_user_data(user_id, data_type)
+        
+        # MongoDB에서 사용자 루틴 삭제 (data_type이 없거나 'routines'인 경우)
+        if not data_type or data_type == 'routines':
+            mongo_deleted = analyzer.db.delete_user_routines(user_id)
+        else:
+            mongo_deleted = True
+        
+        return {
+            "success": True,
+            "vector_deleted": vector_deleted,
+            "mongo_deleted": mongo_deleted,
+            "message": f"사용자 {user_id}의 {data_type or '모든'} 데이터가 삭제되었습니다."
+        }
+    except Exception as e:
+        logger.error(f"사용자 데이터 삭제 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="사용자 데이터 삭제에 실패했습니다.")
+
+@app.get("/api/user/{user_id}/routines")
+async def get_user_routines(user_id: str):
+    """사용자 운동 루틴 조회"""
+    try:
+        routines = analyzer.db.get_user_routines(user_id)
+        has_routines = analyzer.db.has_user_routines(user_id)
+        
+        return {
+            "success": True,
+            "user_id": user_id,
+            "has_routines": has_routines,
+            "routines": routines,
+            "total_days": len(routines)
+        }
+    except Exception as e:
+        logger.error(f"사용자 루틴 조회 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="사용자 루틴 조회에 실패했습니다.")
+
+@app.post("/api/user/{user_id}/progress")
+async def add_user_progress(user_id: str, progress_data: dict):
+    """사용자 운동 진행 상황 추가"""
+    try:
+        # 벡터DB에 진행 상황 저장
+        vector_saved = analyzer.user_vector_store.add_user_progress(user_id, progress_data)
+        
+        # MongoDB에도 저장
+        mongo_saved = analyzer.db.save_user_data(user_id, 'progress', progress_data)
+        
+        return {
+            "success": True,
+            "vector_saved": vector_saved,
+            "mongo_saved": bool(mongo_saved),
+            "message": "운동 진행 상황이 저장되었습니다."
+        }
+    except Exception as e:
+        logger.error(f"운동 진행 상황 저장 실패: {str(e)}")
+        raise HTTPException(status_code=500, detail="운동 진행 상황 저장에 실패했습니다.")
 
 # 기존 API 엔드포인트들 (하위 호환성 유지)
 @app.post("/api/user/info")
@@ -393,7 +488,7 @@ async def recommend_workout(data: dict):
     try:
         inbody_data = data.get("inbody", {})
         preferences = data.get("preferences", {})
-        user_id = data.get("user_id")  # user_id 추출
+        user_id = data.get("user_id")
         
         logger.info("운동 루틴 추천 시작")
         logger.info(f"사용자 ID: {user_id}")
@@ -417,11 +512,31 @@ async def recommend_workout(data: dict):
                     detail=f"필수 운동 선호도 정보가 누락되었습니다: {field}"
                 )
 
-        # 운동 루틴 생성 (user_id 전달)
+        # 사용자 벡터DB에 데이터 저장
+        if user_id:
+            try:
+                analyzer.user_vector_store.add_user_inbody_data(user_id, inbody_data)
+                analyzer.user_vector_store.add_user_preferences(user_id, preferences)
+            except Exception as e:
+                logger.error(f"사용자 데이터 벡터DB 저장 실패: {str(e)}")
+
+        # 사용자 컨텍스트 가져오기
+        user_context = ""
+        if user_id:
+            try:
+                user_context = analyzer.user_vector_store.get_user_context(
+                    user_id, 
+                    f"운동 루틴 추천 {preferences.get('goal', '')}"
+                )
+            except Exception as e:
+                logger.error(f"사용자 컨텍스트 조회 실패: {str(e)}")
+
+        # 운동 루틴 생성 (사용자 컨텍스트 포함)
         routine_result = await analyzer.generate_enhanced_routine_async({
             "inbody": inbody_data,
             "preferences": preferences,
-            "user_id": user_id  # user_id 전달
+            "user_id": user_id,
+            "user_context": user_context
         })
 
         # 결과가 딕셔너리 형태인지 확인 (성공적으로 생성된 경우)
@@ -479,10 +594,13 @@ async def ready():
     """서버 준비 상태 확인"""
     try:
         status = analyzer.get_loading_status()
+        user_vector_stats = analyzer.user_vector_store.get_collection_stats()
+        
         return {
             "ready": status.get("documents_loaded", False),
             "loading": status.get("loading_in_progress", False),
-            "status": status
+            "status": status,
+            "user_vector_store": user_vector_stats
         }
     except Exception as e:
         return {
@@ -508,6 +626,13 @@ async def global_exception_handler(request, exc):
 async def startup_event():
     """앱 시작시 초기화"""
     logger.info("🚀 AI Fitness Coach API 시작")
+    
+    # 사용자 벡터DB 초기화 확인
+    try:
+        user_vector_stats = analyzer.user_vector_store.get_collection_stats()
+        logger.info(f"사용자 벡터DB 상태: {user_vector_stats}")
+    except Exception as e:
+        logger.error(f"사용자 벡터DB 상태 확인 실패: {e}")
     
     # 주기적 세션 정리 스케줄링
     async def cleanup_sessions_periodically():
