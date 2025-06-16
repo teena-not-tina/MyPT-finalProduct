@@ -1,40 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-// 사용자 ID 생성/가져오기 함수 - 정수로 생성
+// 사용자 ID 가져오기 함수 - 정수로 생성
 const getUserId = () => {
   let userId = sessionStorage.getItem('user_id');
 
   if (!userId) {
-    // 정수 형태의 user_id 생성 (1-999999 범위)
-    userId = Math.floor(Math.random() * 999999) + 1;
-    sessionStorage.setItem('user_id', userId.toString());
+    // 정수 형태의 user_id 생성 (1000-999999 범위)
+    userId = (Math.floor(Math.random() * 999000) + 1000).toString();
+    sessionStorage.setItem('user_id', userId);
+    console.log('새로운 user_id 생성:', userId);
   }
 
-  // 문자열로 저장되었지만 정수로 파싱 가능한 값 반환
   return userId;
-};
-
-// 또는 시간 기반 정수 ID 생성
-const generateIntegerUserId = () => {
-  // 현재 시간의 마지막 6자리 숫자 사용
-  const timestamp = Date.now();
-  const userId = parseInt(timestamp.toString().slice(-6));
-  sessionStorage.setItem('user_id', userId.toString());
-  return userId.toString();
-};
-
-// 기존 문자열 user_id를 정수로 변환 (만약 UUID 등을 사용했다면)
-const convertToIntegerUserId = () => {
-  let userId = sessionStorage.getItem('user_id');
-
-  if (userId && isNaN(parseInt(userId))) {
-    // 기존 ID가 정수가 아니면 새로 생성
-    const newUserId = Math.floor(Math.random() * 999999) + 1;
-    sessionStorage.setItem('user_id', newUserId.toString());
-    return newUserId.toString();
-  }
-
-  return userId || generateIntegerUserId();
 };
 
 // Header 컴포넌트
@@ -57,7 +34,7 @@ const Header = () => (
 );
 
 // API 함수들
-const API_URL = "http://localhost:8000";
+const API_URL = "http://192.168.0.22:8002";
 
 const checkAPIHealth = async () => {
   try {
@@ -336,21 +313,6 @@ const ChatbotPage = () => {
     }
   }, []);
 
-  // 초기 세션 생성
-  const initializeSession = useCallback(async () => {
-    try {
-      const userId = getUserId();
-      const data = await resetSession(null, userId);
-
-      if (data.success) {
-        setMessages(data.messages || []);
-        setSessionId(data.session_id);
-      }
-    } catch (error) {
-      console.error('초기 세션 생성 실패:', error);
-    }
-  }, []);
-
   // 응답 데이터 처리
   const processResponse = useCallback((data) => {
     setMessages(data.messages || []);
@@ -364,6 +326,19 @@ const ChatbotPage = () => {
     setShowInput(data.show_input || false);
     setInputPlaceholder(data.input_placeholder || '');
   }, []);
+
+  const initializeSession = useCallback(async () => {
+      try {
+        const userId = getUserId();
+        const data = await resetSession(null, userId);
+
+        if (data.success) {
+          processResponse(data); // ✅ 추가됨
+        }
+      } catch (error) {
+        console.error('초기 세션 생성 실패:', error);
+      }
+    }, [processResponse]); // ✅ 의존성 추가
 
   // 메시지 전송
   const handleSendMessage = useCallback(async (message = null) => {
@@ -467,20 +442,13 @@ const ChatbotPage = () => {
       const data = await resetSession(sessionId, userId);
 
       if (data.success) {
-        setMessages(data.messages || []);
-        setSessionId(data.session_id);
-        setRoutineData(null);
-
-        // UI 상태 초기화
-        setShowButtons(false);
-        setShowFileUpload(false);
-        setShowInput(false);
-        setButtonOptions([]);
+        processResponse(data); // ✅ 추가됨
       }
     } catch (error) {
       console.error('세션 초기화 실패:', error);
     }
-  }, [sessionId]);
+  }, [sessionId, processResponse]); // ✅ 의존성 추가
+
 
   // 일반 메시지 입력 폼 제출
   const handleFormSubmit = useCallback((e) => {

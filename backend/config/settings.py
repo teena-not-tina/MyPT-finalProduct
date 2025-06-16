@@ -31,8 +31,8 @@ FUNCTION_DEFINITIONS = [
             "properties": {
                 "intent": {
                     "type": "string",
-                    "enum": ["workout_recommendation", "diet_recommendation", "general_chat", "pdf_upload"],
-                    "description": "사용자의 의도 (운동 추천, 식단 추천, 일반 채팅, PDF 업로드)"
+                    "enum": ["workout_recommendation", "general_chat", "pdf_upload"],
+                    "description": "사용자의 의도 (운동 추천, 일반 채팅, PDF 업로드)"
                 },
                 "has_pdf": {
                     "type": "boolean",
@@ -104,9 +104,8 @@ INTENT_RECOGNITION_PROMPT = """
 
 사용자의 메시지를 분석하여 다음 중 하나의 의도를 파악하세요:
 1. workout_recommendation: 운동 루틴, 운동 추천, 헬스 관련 요청
-2. diet_recommendation: 식단, 음식, 영양 관련 요청  
-3. pdf_upload: PDF 파일 업로드 관련 언급
-4. general_chat: 일반적인 대화, 인사말
+2. pdf_upload: PDF 파일 업로드 관련 언급
+3. general_chat: 일반적인 대화, 인사말, 운동 상담
 
 또한 사용자가 PDF 파일이 있다고 언급했는지 확인하세요.
 """
@@ -135,6 +134,7 @@ SYSTEM_PROMPT = f"""
 # 맞춤형 운동 루틴 추천 AI 프롬프트
 
 당신은 퍼스널 트레이너이자 운동 전문가 AI입니다. 사용자의 인바디 데이터와 운동 목적을 바탕으로 등록된 운동 목록에서 최적의 맞춤형 운동 루틴을 제공해야 합니다.
+
 1. 먼저 InBody PDF에서 추출한 사용자의 신체 및 운동 정보를 아래 예시처럼 JSON 객체로 요약해서 출력하세요.
 2. 그 다음, test.routines.json 예시와 동일한 구조로 4일차까지의 맞춤형 운동 루틴만 JSON 배열로 출력하세요.
 3. 반드시 아래 예시와 동일한 key, 구조, 타입을 지키세요. (id, name, sets, reps, weight, time, completed 등)
@@ -142,8 +142,9 @@ SYSTEM_PROMPT = f"""
 
 예시(루틴 부분):
 {TEST_ROUTINE_EXAMPLE}
+
 ## 📋 등록 운동 목록 (부위별 분류)
-(생략, 기존 목록 그대로 유지)
+(운동 목록은 기존과 동일하게 유지)
 
 ## ⚠️ 반드시 아래 예시와 같은 JSON 배열만 반환하세요.
 설명, 마크다운, 기타 텍스트는 절대 포함하지 마세요.
@@ -189,10 +190,10 @@ SYSTEM_PROMPT = f"""
 - 부상 부위 고려한 대체 운동 제시
 - 가용 시간에 맞는 운동 시간 배분
 
-### VectorDB 검색 결과 통합
-- 유사한 체형/목표를 가진 사용자들의 성공 사례
-- 개인 특성에 맞는 최적화된 운동 조합
-- 과학적 근거가 있는 운동 프로그램
+### 사용자 개인 데이터 활용
+- 사용자별 과거 운동 기록 및 선호도 반영
+- 개인별 운동 패턴 및 성과 분석 결과 적용
+- 사용자 맞춤형 운동 강도 및 진행도 설정
 """
 
 # 챗봇 프롬프트 - 후속 질문 및 상담용 (기존 유지)
@@ -228,41 +229,13 @@ CHATBOT_PROMPT = """
 - 일상생활에 적용하기 쉬운 방법
 - 단계별 접근법 제시
 
+### 6. 사용자 개인화
+- 사용자별 운동 히스토리 및 선호도 고려
+- 개인 맞춤형 조언 및 격려 메시지
+- 사용자의 진행 상황에 따른 동적 조정
+
 응답 시 이모지를 적절히 사용하여 친근함을 표현하고, 사용자가 실천하고 싶어지도록 동기부여해주세요.
 필요한 요구사항이 있는지 물어보고, 사용자의 피드백을 적극 반영해주세요.
-"""
-
-# 식단 추천 프롬프트
-DIET_RECOMMENDATION_PROMPT = """
-## [사용자 카테고리]
-다음 입력은 사용자가 제공한 음식 이름, 재료 목록 또는 이미지에서 추출된 음식 정보입니다:
-
-[사용자 입력]
-{food_input}
-
-이 정보를 기반으로 다음 정보를 아래와 같은 형식으로 출력해 주세요:
-
-1. 🍽️ 예상 음식 이름 및 설명:
-   - 대표 음식 이름:
-   - 설명:
-
-2. 🧑‍🍳 관련 음식 또는 레시피 추천 (최대 3개):
-   - 이름:
-   - 간단한 설명:
-   - 주요 재료:
-
-3. 📋 해당 음식의 레시피 (간단 요약):
-   - 재료 목록:
-   - 조리 방법 요약:
-
-4. 🍎 영양 정보 (1인분 기준 예상치):
-   - 칼로리 (kcal):
-   - 단백질 (g):
-   - 탄수화물 (g):
-   - 지방 (g):
-   - 비타민/미네랄 등 기타 정보 (있다면):
-
-⚠️ 반드시 신뢰할 수 있는 식품 데이터를 기반으로 현실적인 정보를 추론해 주세요.
 """
 
 # 사용자 상태 관리용 열거형
@@ -276,6 +249,7 @@ class UserState:
 # 파일 및 디렉토리 설정
 UPLOAD_DIR = Path("data/uploads")
 VECTOR_DB_DIR = Path("chroma_db")
+USER_VECTOR_DB_DIR = Path("user_chroma_db")  # 사용자 전용 벡터DB
 EXTRACTED_IMAGES_DIR = Path("extracted_images")
 
 # PDF 처리 설정
@@ -288,6 +262,7 @@ USE_GPU = True  # CUDA 사용 여부
 
 # Vector Store 설정
 VECTOR_COLLECTION_NAME = "fitness_knowledge_base"
+USER_VECTOR_COLLECTION_NAME = "user_personal_data"  # 사용자 개인 데이터 컬렉션
 EMBEDDING_MODEL = "text-embedding-3-small"
 MAX_CONTEXT_LENGTH = 3000
 SEARCH_RESULTS_LIMIT = 10
@@ -295,6 +270,7 @@ SEARCH_RESULTS_LIMIT = 10
 # 챗봇 설정
 MAX_CONVERSATION_HISTORY = 20  # 대화 기록 최대 저장 수
 SESSION_TIMEOUT_HOURS = 24  # 세션 타임아웃 (시간)
+DAILY_MODIFICATION_TIMEOUT_HOURS = 24  # 일일 수정사항 타임아웃
 
 # Streamlit 설정
 PAGE_TITLE = "AI 피트니스 코치"
@@ -311,6 +287,7 @@ def create_directories():
     directories = [
         UPLOAD_DIR,
         VECTOR_DB_DIR,
+        USER_VECTOR_DB_DIR,  # 사용자 벡터DB 디렉토리 추가
         EXTRACTED_IMAGES_DIR,
         Path("logs")
     ]
@@ -342,10 +319,12 @@ def get_config_summary():
         "max_tokens": MAX_TOKENS,
         "embedding_model": EMBEDDING_MODEL,
         "vector_collection": VECTOR_COLLECTION_NAME,
+        "user_vector_collection": USER_VECTOR_COLLECTION_NAME,
         "max_file_size_mb": MAX_FILE_SIZE / (1024 * 1024),
         "ocr_languages": OCR_LANGUAGES,
         "use_gpu": USE_GPU,
-        "session_timeout_hours": SESSION_TIMEOUT_HOURS
+        "session_timeout_hours": SESSION_TIMEOUT_HOURS,
+        "daily_modification_timeout_hours": DAILY_MODIFICATION_TIMEOUT_HOURS
     }
 
 if __name__ == "__main__":

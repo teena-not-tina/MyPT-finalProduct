@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000";
+const API_URL = "http://192.168.0.22:8002";
 
 const getUserId = () => {
   return sessionStorage.getItem('user_id');

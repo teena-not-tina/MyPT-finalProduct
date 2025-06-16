@@ -13,6 +13,8 @@ import logging
 import traceback
 from typing import Optional
 from bson import ObjectId
+from datetime import datetime
+
 
 from config.settings import (
     OPENAI_API_KEY,
@@ -25,26 +27,27 @@ from config.settings import (
 from modules.pdf_processor import PDFProcessor
 from modules.routine_generator import AIAnalyzer
 from modules.vector_store import VectorStore
-from modules.user_vector_store import UserVectorStore  # 새로 추가
+from modules.user_vector_store import UserVectorStore
 from modules.utils import validate_uploaded_file, create_upload_directory, save_uploaded_file
 from modules.chat_session import session_manager, SessionState
 
 app = FastAPI()
 UPLOAD_DIR = create_upload_directory()
 
-# ObjectId를 JSON으로 직렬화하기 위한 커스텀 JSONResponse
 class CustomJSONResponse(JSONResponse):
     def render(self, content) -> bytes:
-        def convert_objectid(obj):
+        def convert_objectid_and_datetime(obj):
             if isinstance(obj, ObjectId):
                 return str(obj)
+            elif isinstance(obj, datetime):
+                return obj.isoformat()
             elif isinstance(obj, dict):
-                return {key: convert_objectid(value) for key, value in obj.items()}
+                return {key: convert_objectid_and_datetime(value) for key, value in obj.items()}
             elif isinstance(obj, list):
-                return [convert_objectid(item) for item in obj]
+                return [convert_objectid_and_datetime(item) for item in obj]
             return obj
         
-        content = convert_objectid(content)
+        content = convert_objectid_and_datetime(content)
         return super().render(content)
 
 # 로거 설정
@@ -181,8 +184,8 @@ async def analyze_inbody(file: UploadFile = File(...), session_id: str = None, u
             # 구조화된 인바디 데이터 추출
             inbody_data = await extract_inbody_data_structured(inbody_text)
             
-            # 사용자 벡터DB에 인바디 데이터 저장
-            if user_id:
+            # 사용자 벡터DB에 인바디 데이터 저장 (user_id 기반)
+            if user_id and user_id != "None" and user_id != "null":
                 try:
                     analyzer.user_vector_store.add_user_inbody_data(user_id, inbody_data)
                     logger.info(f"사용자 {user_id}의 인바디 데이터를 벡터DB에 저장완료")
@@ -327,26 +330,30 @@ async def delete_session(session_id: str):
 
 @app.post("/api/session/reset")
 async def reset_session(data: dict):
-    """세션 초기화 (새로운 대화 시작)"""
+    """세션 초기화 - chat_session_manager에 모든 로직 위임"""
     try:
         session_id = data.get("session_id")
         user_id = data.get("user_id")
         
+        logger.info(f"세션 초기화 요청: session_id={session_id}, user_id={user_id}")
+        
+        # 기존 세션 삭제
         if session_id:
             session_manager.delete_session(session_id)
         
-        # 새 세션 생성
-        new_session = session_manager.get_or_create_session(user_id=user_id)
+        # 새 세션 생성 및 초기 메시지 처리 (모든 로직을 session_manager에 위임)
+        response = await session_manager.create_session_with_welcome_message(user_id, analyzer)
         
-        return {
-            "success": True,
-            "session_id": new_session.session_id,
-            "messages": new_session.messages,
-            "session_info": new_session.get_session_info()
-        }
+        return CustomJSONResponse(response)
+        
     except Exception as e:
         logger.error(f"세션 초기화 실패: {str(e)}")
-        raise HTTPException(status_code=500, detail="세션 초기화에 실패했습니다.")
+        logger.error(traceback.format_exc())
+        return CustomJSONResponse({
+            "success": False,
+            "error": "세션 초기화에 실패했습니다.",
+            "detail": str(e)
+        })
 
 @app.get("/api/sessions/stats")
 async def get_sessions_stats():
@@ -399,8 +406,12 @@ async def cleanup_old_sessions():
 # 사용자 데이터 관리 API 추가
 @app.get("/api/user/{user_id}/data")
 async def get_user_data(user_id: str, data_type: str = None):
-    """사용자 데이터 조회"""
+    """사용자 데이터 조회 (user_id 기반)"""
     try:
+        # user_id 유효성 검증
+        if not user_id or user_id in ["None", "null"]:
+            raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
+        
         # MongoDB에서 사용자 데이터 조회
         user_data = analyzer.db.get_user_data(user_id, data_type)
         
@@ -413,14 +424,20 @@ async def get_user_data(user_id: str, data_type: str = None):
             "mongodb_data": user_data,
             "vector_context": user_context
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"사용자 데이터 조회 실패: {str(e)}")
         raise HTTPException(status_code=500, detail="사용자 데이터 조회에 실패했습니다.")
 
 @app.delete("/api/user/{user_id}/data")
 async def delete_user_data(user_id: str, data_type: str = None):
-    """사용자 데이터 삭제"""
+    """사용자 데이터 삭제 (user_id 기반)"""
     try:
+        # user_id 유효성 검증
+        if not user_id or user_id in ["None", "null"]:
+            raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
+        
         # 벡터DB에서 사용자 데이터 삭제
         vector_deleted = analyzer.user_vector_store.delete_user_data(user_id, data_type)
         
@@ -436,14 +453,20 @@ async def delete_user_data(user_id: str, data_type: str = None):
             "mongo_deleted": mongo_deleted,
             "message": f"사용자 {user_id}의 {data_type or '모든'} 데이터가 삭제되었습니다."
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"사용자 데이터 삭제 실패: {str(e)}")
         raise HTTPException(status_code=500, detail="사용자 데이터 삭제에 실패했습니다.")
 
 @app.get("/api/user/{user_id}/routines")
 async def get_user_routines(user_id: str):
-    """사용자 운동 루틴 조회"""
+    """사용자 운동 루틴 조회 (user_id 기반)"""
     try:
+        # user_id 유효성 검증
+        if not user_id or user_id in ["None", "null"]:
+            raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
+        
         routines = analyzer.db.get_user_routines(user_id)
         has_routines = analyzer.db.has_user_routines(user_id)
         
@@ -455,14 +478,20 @@ async def get_user_routines(user_id: str):
             "total_days": len(routines)
         }
         return CustomJSONResponse(response_data)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"사용자 루틴 조회 실패: {str(e)}")
         raise HTTPException(status_code=500, detail="사용자 루틴 조회에 실패했습니다.")
 
 @app.post("/api/user/{user_id}/progress")
 async def add_user_progress(user_id: str, progress_data: dict):
-    """사용자 운동 진행 상황 추가"""
+    """사용자 운동 진행 상황 추가 (user_id 기반)"""
     try:
+        # user_id 유효성 검증
+        if not user_id or user_id in ["None", "null"]:
+            raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
+        
         # 벡터DB에 진행 상황 저장
         vector_saved = analyzer.user_vector_store.add_user_progress(user_id, progress_data)
         
@@ -475,6 +504,8 @@ async def add_user_progress(user_id: str, progress_data: dict):
             "mongo_saved": bool(mongo_saved),
             "message": "운동 진행 상황이 저장되었습니다."
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"운동 진행 상황 저장 실패: {str(e)}")
         raise HTTPException(status_code=500, detail="운동 진행 상황 저장에 실패했습니다.")
@@ -509,7 +540,7 @@ async def process_user_info(data: dict):
 
 @app.post("/api/workout/recommend")
 async def recommend_workout(data: dict):
-    """운동 루틴 추천 (레거시 호환)"""
+    """운동 루틴 추천 (사용자 ID 기반 개인화)"""
     try:
         inbody_data = data.get("inbody", {})
         preferences = data.get("preferences", {})
@@ -519,6 +550,10 @@ async def recommend_workout(data: dict):
         logger.info(f"사용자 ID: {user_id}")
         logger.info(f"인바디 데이터: {inbody_data}")
         logger.info(f"운동 선호도: {preferences}")
+        
+        # user_id 유효성 검증
+        if not user_id or user_id in ["None", "null"]:
+            logger.warning("유효하지 않은 user_id로 운동 루틴 추천 요청")
         
         # 필수 데이터 검증
         required_inbody = ["gender", "age", "height", "weight"]
@@ -537,26 +572,28 @@ async def recommend_workout(data: dict):
                     detail=f"필수 운동 선호도 정보가 누락되었습니다: {field}"
                 )
 
-        # 사용자 벡터DB에 데이터 저장
-        if user_id:
+        # 사용자 벡터DB에 데이터 저장 (user_id 기반)
+        if user_id and user_id not in ["None", "null"]:
             try:
                 analyzer.user_vector_store.add_user_inbody_data(user_id, inbody_data)
                 analyzer.user_vector_store.add_user_preferences(user_id, preferences)
+                logger.info(f"사용자 {user_id}의 데이터를 벡터DB에 저장 완료")
             except Exception as e:
                 logger.error(f"사용자 데이터 벡터DB 저장 실패: {str(e)}")
 
-        # 사용자 컨텍스트 가져오기
+        # 사용자별 컨텍스트 가져오기 (개인화)
         user_context = ""
-        if user_id:
+        if user_id and user_id not in ["None", "null"]:
             try:
                 user_context = analyzer.user_vector_store.get_user_context(
                     user_id, 
-                    f"운동 루틴 추천 {preferences.get('goal', '')}"
+                    f"운동 루틴 추천 {preferences.get('goal', '')} 개인화"
                 )
+                logger.info(f"사용자 {user_id}의 개인화 컨텍스트 조회 완료")
             except Exception as e:
                 logger.error(f"사용자 컨텍스트 조회 실패: {str(e)}")
 
-        # 운동 루틴 생성 (사용자 컨텍스트 포함)
+        # 운동 루틴 생성 (사용자별 개인화 컨텍스트 포함)
         routine_result = await analyzer.generate_enhanced_routine_async({
             "inbody": inbody_data,
             "preferences": preferences,
@@ -566,13 +603,14 @@ async def recommend_workout(data: dict):
 
         # 결과가 딕셔너리 형태인지 확인 (성공적으로 생성된 경우)
         if isinstance(routine_result, dict) and routine_result.get('success'):
-            logger.info("운동 루틴 생성 및 DB 저장 완료")
+            logger.info(f"사용자 {user_id}의 개인화된 운동 루틴 생성 및 DB 저장 완료")
             return {
                 "success": True,
                 "analysis": routine_result.get('analysis', ''),
                 "routines": routine_result.get('routines', []),
                 "total_days": routine_result.get('total_days', 0),
-                "message": f"{routine_result.get('total_days', 0)}일간의 운동 루틴이 생성되고 저장되었습니다."
+                "personalization_applied": routine_result.get('personalization_applied', False),
+                "message": f"사용자 {user_id}를 위한 개인화된 {routine_result.get('total_days', 0)}일간의 운동 루틴이 생성되고 저장되었습니다."
             }
         else:
             # Fallback 텍스트 응답
@@ -592,27 +630,6 @@ async def recommend_workout(data: dict):
             status_code=500,
             detail=f"운동 루틴 추천 생성에 실패했습니다: {str(e)}"
         )
-
-@app.get("/api/intent/identify")
-async def identify_intent(message: str = Query(...)):
-    """사용자 의도 파악 (레거시 호환)"""
-    try:
-        logger.info(f"의도 파악: {message}")
-        intent = await analyzer.identify_intent(message)
-        return {
-            "success": True,
-            "intent": intent
-        }
-    except Exception as e:
-        logger.error(f"의도 파악 실패: {str(e)}")
-        return {
-            "success": False,
-            "intent": {
-                "intent": "general_chat",
-                "has_pdf": False,
-                "confidence": 0.0
-            }
-        }
 
 @app.get("/ready")
 async def ready():
@@ -640,17 +657,17 @@ async def global_exception_handler(request, exc):
     logger.error(f"글로벌 예외: {str(exc)}")
     logger.error(traceback.format_exc())
     
-    return {
+    return CustomJSONResponse({
         "success": False,
         "error": "서버 내부 오류가 발생했습니다.",
         "detail": str(exc)
-    }
+    })
 
 # 주기적 세션 정리 (백그라운드 태스크)
 @app.on_event("startup")
 async def startup_event():
     """앱 시작시 초기화"""
-    logger.info("🚀 AI Fitness Coach API 시작")
+    logger.info("🚀 AI Fitness Coach API 시작 (식단 기능 제거, 사용자 기반 개인화 강화)")
     
     # 사용자 벡터DB 초기화 확인
     try:
@@ -665,12 +682,172 @@ async def startup_event():
             await asyncio.sleep(3600)  # 1시간마다
             try:
                 session_manager.cleanup_old_sessions()
+                logger.info("주기적 세션 정리 완료")
             except Exception as e:
                 logger.error(f"주기적 세션 정리 실패: {e}")
     
     # 백그라운드 태스크 시작
     asyncio.create_task(cleanup_sessions_periodically())
+    logger.info("백그라운드 태스크 시작됨")
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """앱 종료시 정리"""
+    logger.info("🛑 AI Fitness Coach API 종료")
+    
+    # 세션 정리
+    try:
+        session_count = len(session_manager.sessions)
+        if session_count > 0:
+            logger.info(f"{session_count}개의 활성 세션을 정리합니다...")
+            for session_id in list(session_manager.sessions.keys()):
+                session_manager.delete_session(session_id)
+        logger.info("모든 세션이 정리되었습니다.")
+    except Exception as e:
+        logger.error(f"세션 정리 중 오류: {e}")
+    
+    # AI 분석기 정리
+    try:
+        if hasattr(analyzer, '__del__'):
+            analyzer.__del__()
+        logger.info("AI 분석기 정리 완료")
+    except Exception as e:
+        logger.error(f"AI 분석기 정리 중 오류: {e}")
+
+# 개발 환경에서만 사용하는 디버그 엔드포인트들
+@app.get("/debug/sessions")
+async def debug_get_all_sessions():
+    """디버그: 모든 세션 정보 조회"""
+    try:
+        sessions_info = {}
+        for session_id, session in session_manager.sessions.items():
+            sessions_info[session_id] = {
+                "session_info": session.get_session_info(),
+                "message_count": len(session.messages),
+                "state": session.state.value,
+                "user_id": session.user_id,
+                "has_existing_routines": bool(session.existing_routines),
+                "has_daily_modifications": bool(session.daily_modifications)
+            }
+        
+        return CustomJSONResponse({
+            "success": True,
+            "total_sessions": len(sessions_info),
+            "sessions": sessions_info
+        })
+    except Exception as e:
+        logger.error(f"디버그 세션 조회 실패: {str(e)}")
+        return CustomJSONResponse({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.post("/debug/test-user-context/{user_id}")
+async def debug_test_user_context(user_id: str, query: str = "운동 루틴 추천"):
+    """디버그: 사용자 컨텍스트 테스트"""
+    try:
+        if not user_id or user_id in ["None", "null"]:
+            raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
+        
+        # 사용자 컨텍스트 조회
+        user_context = analyzer.user_vector_store.get_user_context(user_id, query)
+        
+        # 사용자 최신 데이터 조회
+        latest_data = analyzer.user_vector_store.get_user_latest_data(user_id)
+        
+        # MongoDB에서 사용자 데이터 조회
+        mongo_data = analyzer.db.get_user_data(user_id)
+        
+        return CustomJSONResponse({
+            "success": True,
+            "user_id": user_id,
+            "query": query,
+            "user_context": user_context,
+            "latest_vector_data": latest_data,
+            "mongo_data": mongo_data,
+            "context_length": len(user_context) if user_context else 0
+        })
+    except Exception as e:
+        logger.error(f"사용자 컨텍스트 테스트 실패: {str(e)}")
+        return CustomJSONResponse({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.get("/debug/vector-stats")
+async def debug_vector_stats():
+    """디버그: 벡터DB 통계 정보"""
+    try:
+        general_stats = analyzer.vector_store.get_collection_stats()
+        user_stats = analyzer.user_vector_store.get_collection_stats()
+        loading_status = analyzer.get_loading_status()
+        
+        return CustomJSONResponse({
+            "success": True,
+            "general_vector_store": general_stats,
+            "user_vector_store": user_stats,
+            "loading_status": loading_status,
+            "analyzer_status": {
+                "documents_loaded": analyzer._documents_loaded,
+                "loading_in_progress": analyzer._loading_in_progress
+            }
+        })
+    except Exception as e:
+        logger.error(f"벡터DB 통계 조회 실패: {str(e)}")
+        return CustomJSONResponse({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.get("/api/debug/session/{session_id}")
+async def debug_session(session_id: str):
+    """세션 디버깅용 엔드포인트"""
+    try:
+        session = session_manager.get_session(session_id)
+        if not session:
+            return CustomJSONResponse({
+                "success": False,
+                "error": "세션을 찾을 수 없습니다."
+            })
+        
+        debug_info = {
+            "success": True,
+            "session_id": session.session_id,
+            "user_id": session.user_id,
+            "state": session.state.value,
+            "messages": session.messages,
+            "message_count": len(session.messages),
+            "has_existing_routines": bool(session.existing_routines),
+            "routine_modification_options": session_manager.ROUTINE_MODIFICATION_OPTIONS
+        }
+        
+        return CustomJSONResponse(debug_info)
+        
+    except Exception as e:
+        logger.error(f"세션 디버깅 실패: {str(e)}")
+        return CustomJSONResponse({
+            "success": False,
+            "error": str(e)
+        })
+
+# 메인 실행부
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    
+    # 환경 변수에서 설정 읽기
+    host = os.getenv("HOST", "192.168.0.22")
+    port = int(os.getenv("PORT", 8002))
+    reload = os.getenv("RELOAD", "True").lower() == "true"
+    
+    logger.info(f"서버 시작: http://{host}:{port}")
+    logger.info(f"개발 모드: {reload}")
+    logger.info(f"API 문서: http://{host}:{port}/docs")
+    
+    uvicorn.run(
+        "main:app", 
+        host=host, 
+        port=port, 
+        reload=reload,
+        log_level="info",
+        access_log=True
+    )

@@ -1,12 +1,11 @@
 # backend/modules/chat_session.py
 import uuid
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from enum import Enum
 import json
 import logging
-from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,6 @@ class SessionState(Enum):
     MODIFYING_ROUTINE = "modifying_routine"
     READY_FOR_RECOMMENDATION = "ready_for_recommendation"
     CHATTING = "chatting"
-    DIET_CONSULTATION = "diet_consultation"
 
 class ChatSession:
     def __init__(self, session_id: str = None, user_id: str = None):
@@ -35,15 +33,11 @@ class ChatSession:
         self.routine_data = None
         self.existing_routines = None  # 기존 루틴 저장
         self.modification_request = None  # 수정 요청 내용
+        self.daily_modifications = {}  # 일일 수정사항 저장
         self.created_at = datetime.now(timezone.utc)
         self.last_activity = datetime.now(timezone.utc)
         
-        # 초기 봇 메시지 추가
-        self.add_message(
-            sender='bot',
-            text='안녕하세요! AI 피트니스 코치입니다! 💪\n\n다음 중 어떤 도움이 필요하신가요?\n\n🏋️ 운동 루틴 추천\n🍎 식단 추천\n💬 운동/건강 상담\n\n원하시는 서비스를 말씀해주세요!',
-            message_type='text'
-        )
+        # 초기 봇 메시지는 _handle_initial_state에서 처리
     
     def add_message(self, sender: str, text: str, message_type: str = 'text', **kwargs) -> Dict:
         """메시지 추가"""
@@ -77,6 +71,61 @@ class ChatSession:
         """기존 루틴 설정"""
         self.existing_routines = routines
     
+    def set_daily_modification(self, modification: Dict):
+        """일일 수정사항 설정 (당일만 적용)"""
+        today = datetime.now(timezone.utc).date().isoformat()
+        self.daily_modifications[today] = modification
+        
+        # 이전 날짜의 수정사항 정리
+        to_remove = [date for date in self.daily_modifications.keys() if date != today]
+        for date in to_remove:
+            del self.daily_modifications[date]
+    
+    def get_current_routines(self):
+        """현재 적용된 루틴 반환 (일일 수정사항 반영)"""
+        today = datetime.now(timezone.utc).date().isoformat()
+        base_routines = self.existing_routines or []
+        
+        # 오늘의 수정사항이 있으면 적용
+        if today in self.daily_modifications:
+            modified_routines = base_routines.copy()
+            modification = self.daily_modifications[today]
+            # 여기서 수정사항을 적용하는 로직 구현
+            # (예: 특정 운동 교체, 강도 조절 등)
+            return self._apply_daily_modifications(modified_routines, modification)
+        
+        return base_routines
+    
+    def _apply_daily_modifications(self, routines: List[Dict], modification: Dict) -> List[Dict]:
+        """일일 수정사항을 루틴에 적용"""
+        # 실제 수정 로직 구현
+        # 예시: 특정 운동의 강도 조절, 운동 교체 등
+        modified_routines = json.loads(json.dumps(routines))  # 깊은 복사
+        
+        mod_type = modification.get('type')
+        if mod_type == 'intensity_adjustment':
+            # 강도 조절
+            factor = modification.get('factor', 1.0)
+            for routine in modified_routines:
+                for exercise in routine.get('exercises', []):
+                    for set_info in exercise.get('sets', []):
+                        if 'weight' in set_info:
+                            set_info['weight'] = int(set_info['weight'] * factor)
+                        if 'reps' in set_info:
+                            set_info['reps'] = int(set_info['reps'] * factor)
+        
+        elif mod_type == 'exercise_replacement':
+            # 운동 교체
+            old_exercise = modification.get('old_exercise')
+            new_exercise = modification.get('new_exercise')
+            if old_exercise and new_exercise:
+                for routine in modified_routines:
+                    for exercise in routine.get('exercises', []):
+                        if old_exercise.lower() in exercise.get('name', '').lower():
+                            exercise['name'] = new_exercise
+        
+        return modified_routines
+    
     def get_session_info(self) -> Dict:
         """세션 정보 반환"""
         return {
@@ -89,6 +138,7 @@ class ChatSession:
             'has_workout_preferences': bool(self.workout_preferences),
             'has_routine_data': bool(self.routine_data),
             'has_existing_routines': bool(self.existing_routines),
+            'has_daily_modifications': bool(self.daily_modifications),
             'created_at': self.created_at.isoformat(),
             'last_activity': self.last_activity.isoformat()
         }
@@ -119,15 +169,17 @@ class ChatSessionManager:
         # 루틴 수정 관련 옵션들
         self.ROUTINE_MODIFICATION_OPTIONS = [
             '새로운 루틴으로 완전히 교체',
-            '기존 루틴 일부 수정',
-            '운동 강도 조절',
-            '운동 시간 조절',
-            '특정 운동 교체',
+            '기존 루틴 일부 수정 (오늘만)',
+            '운동 강도 조절 (오늘만)',
+            '운동 시간 조절 (오늘만)',
+            '특정 운동 교체 (오늘만)',
             '기존 루틴 유지하고 상담만'
         ]
+        
+    MAX_SESSIONS = 1000
     
     def get_or_create_session(self, session_id: str = None, user_id: str = None) -> ChatSession:
-        """세션 가져오기 또는 생성"""
+        """세션 가져오기 또는 생성 - 빈 세션만 생성"""
         if session_id and session_id in self.sessions:
             session = self.sessions[session_id]
             if user_id and not session.user_id:
@@ -137,24 +189,102 @@ class ChatSessionManager:
         session = ChatSession(session_id, user_id)
         self.sessions[session.session_id] = session
         logger.info(f"새 세션 생성: {session.session_id} (사용자: {user_id})")
+        
+        # 초기 메시지 생성 로직 완전 제거!
         return session
     
+    async def create_session_with_welcome_message(self, user_id: str, analyzer) -> Dict:
+        """새 세션 생성 + 환영 메시지 생성 (모든 초기화 로직의 중심)"""
+        try:
+            # 1. 빈 세션 생성
+            session = self.get_or_create_session(user_id=user_id)
+            
+            # 2. 사용자 상황에 따른 환영 메시지 생성
+            if user_id and user_id not in ["None", "null", None]:
+                # 사용자 ID가 있는 경우 - 기존 루틴 확인
+                try:
+                    has_routines = analyzer.db.has_user_routines(user_id)
+                    logger.info(f"사용자 {user_id} 기존 루틴 존재: {has_routines}")
+                    
+                    if has_routines:
+                        # 기존 루틴이 있는 경우
+                        existing_routines = analyzer.db.get_user_routines(user_id)
+                        session.set_existing_routines(existing_routines)
+                        
+                        bot_message = session.add_message(
+                            'bot',
+                            f'안녕하세요! 💪 기존에 생성하신 운동 루틴({len(existing_routines)}일차)이 있습니다.\n\n어떻게 도와드릴까요?'
+                        )
+                        session.update_state(SessionState.ASKING_ROUTINE_MODIFICATION)
+                        
+                        return self._create_response(
+                            session, 
+                            bot_message,
+                            show_buttons=True,
+                            button_options=self.ROUTINE_MODIFICATION_OPTIONS,
+                            routine_data=existing_routines
+                        )
+                    else:
+                        # 기존 루틴이 없는 경우 - 바로 PDF 질문
+                        bot_message = session.add_message(
+                            'bot',
+                            '운동 루틴 추천을 위해 인바디 정보가 필요합니다.\n\n인바디 측정 결과 PDF가 있으신가요?'
+                        )
+                        session.update_state(SessionState.ASKING_PDF)
+                        
+                        return self._create_response(
+                            session,
+                            bot_message,
+                            show_buttons=True,
+                            button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요']
+                        )
+                        
+                except Exception as db_error:
+                    logger.error(f"DB 조회 실패: {str(db_error)}")
+                    # DB 실패시 기본 PDF 질문
+                    bot_message = session.add_message(
+                        'bot',
+                        '운동 루틴 추천을 위해 인바디 정보가 필요합니다.\n\n인바디 측정 결과 PDF가 있으신가요?'
+                    )
+                    session.update_state(SessionState.ASKING_PDF)
+                    
+                    return self._create_response(
+                        session,
+                        bot_message,
+                        show_buttons=True,
+                        button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요']
+                    )
+            else:
+                # 사용자 ID가 없는 경우 - 바로 PDF 질문
+                bot_message = session.add_message(
+                    'bot',
+                    '안녕하세요! AI 피트니스 코치입니다! 💪\n\n운동 루틴 추천을 위해 인바디 정보가 필요합니다.\n\n인바디 측정 결과 PDF가 있으신가요?'
+                )
+                session.update_state(SessionState.ASKING_PDF)
+                
+                return self._create_response(
+                    session,
+                    bot_message,
+                    show_buttons=True,
+                    button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요']
+                )
+                
+        except Exception as e:
+            logger.error(f"환영 메시지 생성 실패: {str(e)}")
+            raise
+    
     async def process_message(self, session_id: str, message: str, analyzer, user_id: str = None) -> Dict:
-        """메시지 처리 메인 로직"""
+        """메시지 처리 메인 로직 - 초기 상태는 더 이상 여기서 처리하지 않음"""
         session = self.get_or_create_session(session_id, user_id)
         
         # 사용자 메시지 추가
         session.add_message('user', message)
         
         try:
-            # 상태별 메시지 처리
-            if session.state == SessionState.INITIAL:
-                return await self._handle_initial_state(session, message, analyzer)
+            # INITIAL 상태는 이제 create_session_with_welcome_message에서만 처리됨
+            # 여기서는 실제 대화 상태들만 처리
             
-            elif session.state == SessionState.CHECKING_EXISTING_ROUTINE:
-                return await self._handle_existing_routine_check(session, message, analyzer)
-            
-            elif session.state == SessionState.ASKING_ROUTINE_MODIFICATION:
+            if session.state == SessionState.ASKING_ROUTINE_MODIFICATION:
                 return await self._handle_routine_modification_choice(session, message, analyzer)
             
             elif session.state == SessionState.MODIFYING_ROUTINE:
@@ -169,13 +299,11 @@ class ChatSessionManager:
             elif session.state == SessionState.COLLECTING_WORKOUT_PREFS:
                 return await self._handle_workout_prefs_collection(session, message, analyzer)
             
-            elif session.state == SessionState.DIET_CONSULTATION:
-                return await self._handle_diet_consultation(session, message, analyzer)
-            
             elif session.state == SessionState.CHATTING:
                 return await self._handle_general_chat(session, message, analyzer)
             
             else:
+                # 예상치 못한 상태 - 일반 채팅으로 처리
                 return await self._handle_general_chat(session, message, analyzer)
                 
         except Exception as e:
@@ -185,82 +313,7 @@ class ChatSessionManager:
                 '죄송합니다. 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
             )
             return self._create_response(session, bot_message)
-    
-    async def _handle_initial_state(self, session: ChatSession, message: str, analyzer) -> Dict:
-        """초기 상태 처리 - 기존 루틴 확인 추가"""
-        # 의도 파악
-        intent = await analyzer.identify_intent(message)
-        session.user_intent = intent
         
-        if intent['intent'] == 'workout_recommendation':
-            # 사용자 ID가 있으면 기존 루틴 확인
-            if session.user_id:
-                return await self._check_existing_routines(session, analyzer)
-            else:
-                # 사용자 ID가 없으면 바로 PDF 질문으로
-                bot_message = session.add_message(
-                    'bot',
-                    '운동 루틴 추천을 위해 인바디 정보가 필요합니다.\n\n인바디 측정 결과 PDF가 있으신가요?'
-                )
-                session.update_state(SessionState.ASKING_PDF)
-                return self._create_response(session, bot_message, show_buttons=True, 
-                                           button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요'])
-        
-        elif intent['intent'] == 'diet_recommendation':
-            bot_message = session.add_message(
-                'bot',
-                '식단 추천 서비스입니다! 🍽️\n\n어떤 종류의 식단 추천을 원하시나요?\n- 다이어트 식단\n- 근육량 증가 식단\n- 건강 유지 식단\n- 특정 음식에 대한 영양 정보'
-            )
-            session.update_state(SessionState.DIET_CONSULTATION)
-            
-        else:
-            # 일반 채팅
-            response = await analyzer.chat_with_bot_async(message, use_vector_search=True)
-            bot_message = session.add_message('bot', response)
-        
-        return self._create_response(session, bot_message)
-    
-    async def _check_existing_routines(self, session: ChatSession, analyzer) -> Dict:
-        """기존 루틴 확인"""
-        try:
-            # 데이터베이스에서 기존 루틴 확인
-            has_routines = analyzer.db.has_user_routines(session.user_id)
-            
-            if has_routines:
-                # 기존 루틴 가져오기
-                existing_routines = analyzer.db.get_user_routines(session.user_id)
-                session.set_existing_routines(existing_routines)
-                
-                bot_message = session.add_message(
-                    'bot',
-                    f'안녕하세요! 기존에 생성하신 운동 루틴({len(existing_routines)}일차)이 있습니다.\n\n어떻게 도와드릴까요?'
-                )
-                session.update_state(SessionState.ASKING_ROUTINE_MODIFICATION)
-                
-                return self._create_response(session, bot_message, 
-                                           show_buttons=True,
-                                           button_options=self.ROUTINE_MODIFICATION_OPTIONS)
-            else:
-                # 기존 루틴이 없으면 PDF 질문으로
-                bot_message = session.add_message(
-                    'bot',
-                    '운동 루틴 추천을 위해 인바디 정보가 필요합니다.\n\n인바디 측정 결과 PDF가 있으신가요?'
-                )
-                session.update_state(SessionState.ASKING_PDF)
-                return self._create_response(session, bot_message, show_buttons=True,
-                                           button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요'])
-                
-        except Exception as e:
-            logger.error(f"기존 루틴 확인 중 오류: {str(e)}")
-            # 오류 시 기본 플로우로
-            bot_message = session.add_message(
-                'bot',
-                '운동 루틴 추천을 위해 인바디 정보가 필요합니다.\n\n인바디 측정 결과 PDF가 있으신가요?'
-            )
-            session.update_state(SessionState.ASKING_PDF)
-            return self._create_response(session, bot_message, show_buttons=True,
-                                       button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요'])
-    
     async def _handle_routine_modification_choice(self, session: ChatSession, message: str, analyzer) -> Dict:
         """루틴 수정 선택 처리"""
         session.modification_request = message
@@ -268,6 +321,10 @@ class ChatSessionManager:
         if '새로운 루틴으로 완전히 교체' in message:
             # 기존 루틴 삭제 후 새로운 루틴 생성
             analyzer.db.delete_user_routines(session.user_id)
+            # 사용자 벡터DB에서도 기존 데이터 삭제
+            if hasattr(analyzer, 'user_vector_store') and session.user_id:
+                analyzer.user_vector_store.delete_user_data(session.user_id)
+            
             bot_message = session.add_message(
                 'bot',
                 '기존 루틴을 삭제하고 새로운 루틴을 생성하겠습니다.\n\n인바디 측정 결과 PDF가 있으신가요?'
@@ -276,21 +333,22 @@ class ChatSessionManager:
             return self._create_response(session, bot_message, show_buttons=True,
                                        button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요'])
         
-        elif '기존 루틴 일부 수정' in message or '운동 강도 조절' in message or '운동 시간 조절' in message or '특정 운동 교체' in message:
+        elif any(keyword in message for keyword in ['일부 수정', '강도 조절', '시간 조절', '운동 교체']) and '오늘만' in message:
             bot_message = session.add_message(
                 'bot',
-                '어떤 부분을 수정하고 싶으신지 구체적으로 말씀해주세요.\n\n예: "1일차 스쿼트를 런지로 바꿔주세요", "전체적으로 강도를 낮춰주세요" 등'
+                '오늘 하루만 적용될 수정사항을 말씀해주세요.\n\n예시:\n- "1일차 스쿼트를 런지로 바꿔주세요"\n- "전체적으로 강도를 20% 낮춰주세요"\n- "운동 시간을 30분으로 줄여주세요"\n\n내일부터는 다시 원래 루틴으로 돌아갑니다.'
             )
             session.update_state(SessionState.MODIFYING_ROUTINE)
             return self._create_response(session, bot_message)
         
         elif '기존 루틴 유지하고 상담만' in message:
+            current_routines = session.get_current_routines()
             bot_message = session.add_message(
                 'bot',
                 '현재 루틴에 대해 궁금한 점이나 조언이 필요한 부분을 말씀해주세요! 💪'
             )
             session.update_state(SessionState.CHATTING)
-            return self._create_response(session, bot_message, routine_data=session.existing_routines)
+            return self._create_response(session, bot_message, routine_data=current_routines)
         
         else:
             # 기본 처리
@@ -302,14 +360,14 @@ class ChatSessionManager:
                                        button_options=self.ROUTINE_MODIFICATION_OPTIONS)
     
     async def _handle_routine_modification(self, session: ChatSession, message: str, analyzer) -> Dict:
-        """루틴 수정 처리"""
+        """루틴 수정 처리 (오늘만 적용)"""
         try:
             # Function calling으로 수정 요청 분석
             response = await analyzer.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{
                     "role": "system",
-                    "content": "사용자의 운동 루틴 수정 요청을 분석하고 실행하세요."
+                    "content": "사용자의 운동 루틴 수정 요청을 분석하고 오늘 하루만 적용될 수정사항을 생성하세요."
                 }, {
                     "role": "user",
                     "content": f"현재 루틴: {session.existing_routines}\n\n수정 요청: {message}"
@@ -317,24 +375,32 @@ class ChatSessionManager:
                 tools=[{
                     "type": "function",
                     "function": {
-                        "name": "modify_workout_routine",
-                        "description": "운동 루틴 수정",
+                        "name": "create_daily_modification",
+                        "description": "오늘 하루만 적용될 운동 루틴 수정사항 생성",
                         "parameters": {
                             "type": "object",
                             "properties": {
                                 "modification_type": {
                                     "type": "string",
-                                    "enum": ["replace_exercise", "adjust_intensity", "adjust_time", "general_modification"],
+                                    "enum": ["exercise_replacement", "intensity_adjustment", "time_adjustment", "general_modification"],
                                     "description": "수정 유형"
                                 },
-                                "target_day": {"type": "integer", "description": "수정할 운동 일차 (전체 수정시 0)"},
                                 "details": {"type": "string", "description": "수정 내용 설명"},
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {
+                                        "factor": {"type": "number", "description": "강도 조절 비율 (예: 0.8 = 20% 감소)"},
+                                        "old_exercise": {"type": "string", "description": "교체할 기존 운동"},
+                                        "new_exercise": {"type": "string", "description": "새로운 운동"},
+                                        "time_limit": {"type": "integer", "description": "시간 제한 (분)"}
+                                    }
+                                },
                                 "success": {"type": "boolean", "description": "수정 가능 여부"}
                             }
                         }
                     }
                 }],
-                tool_choice={"type": "function", "function": {"name": "modify_workout_routine"}}
+                tool_choice={"type": "function", "function": {"name": "create_daily_modification"}}
             )
             
             if response.choices[0].message.tool_calls:
@@ -342,13 +408,25 @@ class ChatSessionManager:
                 modification_result = json.loads(function_call.arguments)
                 
                 if modification_result.get('success', False):
-                    # 수정된 루틴 생성 (실제 구현에서는 더 복잡한 로직 필요)
+                    # 오늘의 수정사항 저장
+                    daily_modification = {
+                        'type': modification_result.get('modification_type'),
+                        'details': modification_result.get('details'),
+                        'parameters': modification_result.get('parameters', {}),
+                        'applied_date': datetime.now(timezone.utc).date().isoformat()
+                    }
+                    
+                    session.set_daily_modification(daily_modification)
+                    
+                    # 수정된 루틴 가져오기
+                    modified_routines = session.get_current_routines()
+                    
                     bot_message = session.add_message(
                         'bot',
-                        f"루틴 수정이 완료되었습니다!\n\n수정 내용: {modification_result.get('details', '')}\n\n수정된 루틴을 확인해보세요."
+                        f"오늘 하루만 적용될 루틴 수정이 완료되었습니다! ✅\n\n📝 수정 내용: {modification_result.get('details', '')}\n\n내일부터는 다시 원래 루틴으로 돌아갑니다.\n\n수정된 오늘의 루틴을 확인해보세요."
                     )
                     session.update_state(SessionState.CHATTING)
-                    return self._create_response(session, bot_message, routine_data=session.existing_routines)
+                    return self._create_response(session, bot_message, routine_data=modified_routines)
                 else:
                     bot_message = session.add_message(
                         'bot',
@@ -365,7 +443,7 @@ class ChatSessionManager:
             return self._create_response(session, bot_message)
     
     async def _handle_pdf_question(self, session: ChatSession, message: str) -> Dict:
-        """PDF 질문 처리 - 버튼 기반으로 변경"""
+        """PDF 질문 처리"""
         if '예' in message or 'PDF가 있어요' in message:
             bot_message = session.add_message(
                 'bot',
@@ -382,7 +460,6 @@ class ChatSessionManager:
                 f'인바디 정보를 수동으로 입력하도록 하겠습니다.\n\n{question["text"]}'
             )
             
-            # 질문 타입에 따라 응답 형태 결정
             if question['type'] == 'buttons':
                 return self._create_response(session, bot_message, 
                                            show_buttons=True, 
@@ -391,15 +468,15 @@ class ChatSessionManager:
                 return self._create_response(session, bot_message, show_input=True)
     
     async def _handle_inbody_collection(self, session: ChatSession, message: str, analyzer) -> Dict:
-        """인바디 정보 수집 처리 - 버튼/입력 혼합"""
+        """인바디 정보 수집 처리"""
         current_question = self.INBODY_QUESTIONS[session.current_question_index]
         
         # 사용자 정보 처리
         processed_info = await analyzer.process_user_info_async(message, current_question['key'])
         session.set_inbody_data({current_question['key']: processed_info['value']})
         
-        # 사용자 벡터DB에 저장
-        if hasattr(analyzer, 'user_vector_store'):
+        # 사용자 벡터DB에 저장 (user_id 포함)
+        if hasattr(analyzer, 'user_vector_store') and session.user_id:
             await self._save_inbody_to_vector_db(session, analyzer)
         
         # BMI 및 BMR 계산
@@ -438,15 +515,15 @@ class ChatSessionManager:
                 return self._create_response(session, bot_message, show_input=True)
     
     async def _handle_workout_prefs_collection(self, session: ChatSession, message: str, analyzer) -> Dict:
-        """운동 선호도 수집 처리 - 버튼/입력 혼합"""
+        """운동 선호도 수집 처리"""
         current_question = self.WORKOUT_QUESTIONS[session.current_question_index]
         
         # 사용자 정보 처리
         processed_info = await analyzer.process_user_info_async(message, current_question['key'])
         session.set_workout_preferences({current_question['key']: processed_info['value']})
         
-        # 사용자 벡터DB에 저장
-        if hasattr(analyzer, 'user_vector_store'):
+        # 사용자 벡터DB에 저장 (user_id 포함)
+        if hasattr(analyzer, 'user_vector_store') and session.user_id:
             await self._save_preferences_to_vector_db(session, analyzer)
         
         # 다음 질문으로 진행
@@ -469,16 +546,16 @@ class ChatSessionManager:
             return await self._generate_workout_routine(session, analyzer)
     
     async def _generate_workout_routine(self, session: ChatSession, analyzer) -> Dict:
-        """운동 루틴 생성 - 사용자 벡터DB 활용"""
+        """운동 루틴 생성 - 사용자별 개인화된 추천"""
         bot_message = session.add_message(
             'bot',
             '수집된 정보를 바탕으로 맞춤 운동 루틴을 생성하고 있습니다... ⚡'
         )
         
         try:
-            # 사용자 컨텍스트 가져오기
+            # 사용자별 컨텍스트 가져오기 (user_id 기반)
             user_context = ""
-            if hasattr(analyzer, 'user_vector_store'):
+            if hasattr(analyzer, 'user_vector_store') and session.user_id:
                 user_context = analyzer.user_vector_store.get_user_context(
                     session.user_id, 
                     f"운동 루틴 추천 {session.workout_preferences.get('goal', '')}"
@@ -496,11 +573,12 @@ class ChatSessionManager:
                 'basal_metabolic_rate': session.inbody_data.get('basal_metabolic_rate') if session.inbody_data.get('basal_metabolic_rate') != '모름' else session.inbody_data.get('calculated_bmr')
             }
             
+            # 사용자 데이터 구성 (user_id 포함하여 개인화)
             user_data = {
                 'inbody': final_inbody_data,
                 'preferences': session.workout_preferences,
                 'user_id': session.user_id,
-                'user_context': user_context  # 사용자 컨텍스트 추가
+                'user_context': user_context  # 사용자별 컨텍스트
             }
             
             routine_result = await analyzer.generate_enhanced_routine_async(user_data)
@@ -511,6 +589,8 @@ class ChatSessionManager:
                 
                 # 운동 루틴 표시
                 session.routine_data = routine_result.get('routines', [])
+                session.set_existing_routines(session.routine_data)  # 기존 루틴으로 설정
+                
                 routine_message = session.add_message(
                     'bot', 
                     '📋 맞춤 운동 루틴:', 
@@ -539,18 +619,9 @@ class ChatSessionManager:
             session.update_state(SessionState.INITIAL)
             return self._create_response(session, error_message)
     
-    async def _handle_diet_consultation(self, session: ChatSession, message: str, analyzer) -> Dict:
-        """식단 상담 처리"""
-        response = await analyzer.chat_with_bot_async(
-            f"식단 관련 질문: {message}",
-            use_vector_search=True
-        )
-        bot_message = session.add_message('bot', response)
-        return self._create_response(session, bot_message)
-    
     async def _handle_general_chat(self, session: ChatSession, message: str, analyzer) -> Dict:
-        """일반 채팅 처리 - 사용자 컨텍스트 활용"""
-        # 사용자 컨텍스트 가져오기
+        """일반 채팅 처리 - 사용자별 컨텍스트 활용"""
+        # 사용자별 컨텍스트 가져오기 (user_id 기반)
         user_context = ""
         if (hasattr(analyzer, 'user_vector_store') and session.user_id and 
             session.user_id != "None" and session.user_id != "null"):
@@ -566,10 +637,13 @@ class ChatSessionManager:
         
         response = await analyzer.chat_with_bot_async(enhanced_message, use_vector_search=True)
         bot_message = session.add_message('bot', response)
-        return self._create_response(session, bot_message)
+        
+        # 현재 루틴 데이터 포함 (수정사항 반영)
+        current_routines = session.get_current_routines()
+        return self._create_response(session, bot_message, routine_data=current_routines if current_routines else None)
     
     async def _save_inbody_to_vector_db(self, session: ChatSession, analyzer):
-        """인바디 데이터를 사용자 벡터DB에 저장"""
+        """인바디 데이터를 사용자별 벡터DB에 저장"""
         try:
             if session.user_id and session.user_id != "None" and session.user_id != "null" and session.inbody_data:
                 analyzer.user_vector_store.add_user_inbody_data(session.user_id, session.inbody_data)
@@ -580,7 +654,7 @@ class ChatSessionManager:
             logger.error(f"인바디 데이터 벡터DB 저장 실패: {str(e)}")
     
     async def _save_preferences_to_vector_db(self, session: ChatSession, analyzer):
-        """운동 선호도를 사용자 벡터DB에 저장"""
+        """운동 선호도를 사용자별 벡터DB에 저장"""
         try:
             if session.user_id and session.user_id != "None" and session.user_id != "null" and session.workout_preferences:
                 analyzer.user_vector_store.add_user_preferences(session.user_id, session.workout_preferences)
@@ -658,6 +732,15 @@ class ChatSessionManager:
         # 인바디 데이터 저장
         session.set_inbody_data(inbody_data)
         
+        # 사용자별 벡터DB에 저장
+        if hasattr(session, 'user_id') and session.user_id:
+            try:
+                # analyzer는 process_inbody_pdf 호출부에서 전달받아야 함
+                # 여기서는 임시로 처리
+                pass
+            except Exception as e:
+                logger.error(f"PDF 인바디 데이터 벡터DB 저장 실패: {str(e)}")
+        
         # 추출된 데이터 표시
         formatted_data = self._format_inbody_data(inbody_data)
         bot_message = session.add_message(
@@ -731,7 +814,6 @@ class ChatSessionManager:
     
     def cleanup_old_sessions(self, max_age_hours: int = 24):
         """오래된 세션 정리"""
-        from datetime import timedelta
         current_time = datetime.now(timezone.utc)
         
         to_delete = []

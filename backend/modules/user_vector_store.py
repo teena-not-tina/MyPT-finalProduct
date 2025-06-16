@@ -109,6 +109,13 @@ class UserVectorStore:
                 logger.warning("유효하지 않은 user_id로 인바디 데이터 저장 건너뜀")
                 return False
             
+            # 기존 인바디 데이터가 있으면 삭제 (중복 방지)
+            try:
+                self.delete_user_data(str(user_id), 'inbody')
+                logger.info(f"사용자 {user_id}의 기존 인바디 데이터 삭제됨")
+            except Exception as e:
+                logger.warning(f"기존 인바디 데이터 삭제 실패: {e}")
+            
             # 자연어로 변환
             formatted_text = self.format_inbody_data_for_vector(str(user_id), inbody_data)
             
@@ -136,7 +143,7 @@ class UserVectorStore:
                 ids=[doc_id]
             )
             
-            logger.info(f"사용자 {user_id}의 인바디 데이터가 VectorDB에 저장됨")
+            logger.info(f"사용자 {user_id}의 새로운 인바디 데이터가 VectorDB에 저장됨")
             return True
             
         except Exception as e:
