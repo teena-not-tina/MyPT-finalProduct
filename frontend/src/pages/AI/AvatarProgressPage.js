@@ -1,50 +1,77 @@
-// src/pages/AI/AvatarProgressPage.js
 import React, { useState, useEffect } from 'react';
-import Header from '../Shared/Header'; // 헤더 임포트
 
 function AvatarProgressPage() {
-  const [avatarImage, setAvatarImage] = useState(null);
+  const [avatarImages, setAvatarImages] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // 사용자 프로필 상태 추가
   const [userProfile, setUserProfile] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const getAuthToken = () => sessionStorage.getItem('access_token');
   const getUserId = () => sessionStorage.getItem('user_id');
 
-  // 사용자 프로필 정보 로드
+  // Level configurations
+  const levels = [
+    { level: 1, name: "매우 통통", tag: "very fat", color: "from-red-400 to-red-600" },
+    { level: 2, name: "통통", tag: "fat", color: "from-orange-400 to-orange-600" },
+    { level: 3, name: "살짝 통통", tag: "a little fat", color: "from-yellow-400 to-yellow-600" },
+    { level: 4, name: "보통", tag: "average", color: "from-green-400 to-green-600" },
+    { level: 5, name: "살짝 근육질", tag: "slightly muscular", color: "from-blue-400 to-blue-600" },
+    { level: 6, name: "근육질", tag: "muscular", color: "from-purple-400 to-purple-600" },
+    { level: 7, name: "매우 근육질", tag: "very muscular", color: "from-pink-400 to-pink-600" }
+  ];
+
+  // Load user profile
   const loadUserProfile = async () => {
     try {
       const userId = getUserId();
-      const token = getAuthToken();
-      if (!userId || !token) throw new Error('인증 정보가 없습니다.');
+      if (!userId) throw new Error('사용자 ID가 없습니다.');
 
-      const response = await fetch(`/api/user/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const response = await fetch(`/user/${userId}/profile`);
       if (!response.ok) throw new Error('프로필 정보를 불러오는데 실패했습니다.');
       const data = await response.json();
       setUserProfile(data);
+      
+      // Set current index based on user level
+      const userLevelIndex = levels.findIndex(l => l.level === (data.level || 1));
+      setCurrentIndex(userLevelIndex >= 0 ? userLevelIndex : 0);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  // 이미지 데이터 로드
-  const loadAvatarImage = async () => {
+  // Load all level images by calling get_user_image multiple times
+  const loadAllAvatarImages = async () => {
     try {
       setLoading(true);
       const userId = getUserId();
-      const token = getAuthToken();
-      if (!userId || !token) throw new Error('인증 정보가 없습니다.');
+      if (!userId) throw new Error('사용자 ID가 없습니다.');
 
-      const response = await fetch(`/user/${userId}/image`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const imagePromises = levels.map(async (level) => {
+        try {
+          // Call your existing get_user_image endpoint for each level
+          const response = await fetch(`/user/${userId}/image?level=${level.level}`);
+          
+          if (response.ok) {
+            const imageData = await response.json();
+            return { level: level.level, data: imageData };
+          }
+          return null;
+        } catch (err) {
+          console.warn(`Failed to load image for level ${level.level}:`, err);
+          return null;
+        }
       });
-      if (!response.ok) throw new Error('이미지를 불러오는데 실패했습니다.');
-      const imageData = await response.json();
-      setAvatarImage(imageData);
+
+      const results = await Promise.all(imagePromises);
+      const imagesMap = {};
+      results.forEach(result => {
+        if (result) {
+          imagesMap[result.level] = result.data;
+        }
+      });
+      
+      setAvatarImages(imagesMap);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -53,28 +80,62 @@ function AvatarProgressPage() {
   };
 
   useEffect(() => {
-    loadAvatarImage();
     loadUserProfile();
+    loadAllAvatarImages();
   }, []);
 
-  // progress(1~4)를 퍼센트로 변환하는 함수
   const getProgressPercent = (progress) => {
     if (!progress) return 0;
-    // 1~4 → 25, 50, 75, 100
     return Math.min(100, Math.max(0, Math.round((progress / 4) * 100)));
   };
 
-  // const dummyUserData = {
-  //   userName: '김헬린',
-  //   avatarImage: '/images/default_avatar.png', // 실제 아바타 이미지 경로 (나중에 추가)
-  //   currentLevel: 5,
-  //   progressPercentage: 60, // 다음 레벨까지의 진행도
-  //   routineCompleted: 15, // 완료된 루틴 수
-  //   dietRecorded: 25, // 기록된 식단 수
-  //   lastActive: '2025-06-02',
-  // };
+  const nextSlide = () => {
+    setCurrentIndex((prev) => (prev + 1) % levels.length);
+  };
 
-  // 프로필 정보가 없으면 로딩 표시
+  const prevSlide = () => {
+    setCurrentIndex((prev) => (prev - 1 + levels.length) % levels.length);
+  };
+
+  const goToSlide = (index) => {
+    setCurrentIndex(index);
+  };
+
+  const getCardStyle = (index) => {
+    const diff = index - currentIndex;
+    const absIndex = Math.abs(diff);
+    
+    if (absIndex === 0) {
+      // Current/center card
+      return {
+        transform: 'translateX(0) translateZ(0) scale(1)',
+        opacity: 1,
+        zIndex: 10
+      };
+    } else if (absIndex === 1) {
+      // Adjacent cards
+      return {
+        transform: `translateX(${diff > 0 ? '120%' : '-120%'}) translateZ(-100px) scale(0.8)`,
+        opacity: 0.7,
+        zIndex: 5
+      };
+    } else if (absIndex === 2) {
+      // Second level cards
+      return {
+        transform: `translateX(${diff > 0 ? '200%' : '-200%'}) translateZ(-200px) scale(0.6)`,
+        opacity: 0.4,
+        zIndex: 2
+      };
+    } else {
+      // Hidden cards
+      return {
+        transform: `translateX(${diff > 0 ? '300%' : '-300%'}) translateZ(-300px) scale(0.4)`,
+        opacity: 0.2,
+        zIndex: 1
+      };
+    }
+  };
+
   if (!userProfile) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -84,135 +145,155 @@ function AvatarProgressPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header title="나의 아바타" showBackButton={true} />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm p-4">
+        <div className="flex items-center">
+          <button className="mr-4 p-2 hover:bg-gray-100 rounded-full">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-xl font-bold">나의 아바타 진화</h1>
+        </div>
+      </div>
       
-      <div className="p-6 space-y-6">
-        {/* 인사말 */}
+      <div className="p-6 space-y-8">
+        {/* Greeting */}
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
             안녕하세요, {userProfile.email}님!
           </h2>
-          <p className="text-gray-600">오늘도 목표를 향해 달려가고 있어요</p>
-        </div>
-        
-        {/* 아바타 이미지 영역 */}
-        <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
-          <div className="mb-6">
-            {loading ? (
-              <div className="w-60 h-60 mx-auto rounded-full bg-gray-200 animate-pulse" />
-            ) : error ? (
-              <div className="w-60 h-60 mx-auto bg-red-100 rounded-full flex items-center justify-center">
-                <span className="text-red-500">Error</span>
-              </div>
-            ) : avatarImage?.image_data ? (
-              <img 
-                src={`data:${avatarImage.content_type};base64,${avatarImage.image_data}`}
-                alt="My Avatar" 
-                className="w-60 h-60 mx-auto rounded-full object-cover border-4 border-blue-200" 
-              />
-            ) : (
-              <div className="w-40 h-40 mx-auto bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                <svg className="w-40 h-40 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                </svg>
-              </div>
-            )}
-          </div>
-          <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-800 rounded-full font-semibold">
-            <span className="text-sm">Lv. {userProfile.level ?? 1}</span>
-          </div>
+          <p className="text-gray-600">당신의 진화 여정을 확인해보세요</p>
         </div>
 
+        {/* 3D Carousel */}
+        <div className="relative">
+          <div className="perspective-1000 h-96 overflow-hidden">
+            <div className="relative w-full h-full flex items-center justify-center">
+              {levels.map((level, index) => (
+                <div
+                  key={level.level}
+                  className="absolute w-80 h-80 transition-all duration-700 ease-in-out cursor-pointer"
+                  style={getCardStyle(index)}
+                  onClick={() => goToSlide(index)}
+                >
+                  <div className={`w-full h-full bg-gradient-to-br ${level.color} rounded-3xl shadow-2xl p-6 flex flex-col items-center justify-center transform hover:scale-105 transition-transform duration-300`}>
+                    {/* Level Badge */}
+                    <div className="absolute top-4 left-4 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1">
+                      <span className="text-white font-bold text-sm">Lv. {level.level}</span>
+                    </div>
+                    
+                    {/* Current Level Indicator */}
+                    {level.level === userProfile.level && (
+                      <div className="absolute top-4 right-4 bg-yellow-400 rounded-full p-2">
+                        <svg className="w-4 h-4 text-yellow-800" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      </div>
+                    )}
 
-        {/* 진행도 바 */}
+                    {/* Avatar Image */}
+                    <div className="w-48 h-48 mb-4 relative">
+                      {loading ? (
+                        <div className="w-full h-full rounded-full bg-white/20 animate-pulse" />
+                      ) : avatarImages[level.level]?.image_data ? (
+                        <img 
+                          src={`data:${avatarImages[level.level].image_format || 'image/png'};base64,${avatarImages[level.level].image_data}`}
+                          alt={`Level ${level.level} Avatar`}
+                          className="w-full h-full rounded-full object-cover border-4 border-white/30 shadow-lg" 
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-white/20 rounded-full flex items-center justify-center border-4 border-white/30">
+                          <svg className="w-24 h-24 text-white/60" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Level Name */}
+                    <h3 className="text-white text-xl font-bold text-center">{level.name}</h3>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Navigation Buttons */}
+          <button
+            onClick={prevSlide}
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-3 shadow-lg z-20 transition-all duration-300"
+          >
+            <svg className="w-6 h-6 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          
+          <button
+            onClick={nextSlide}
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white rounded-full p-3 shadow-lg z-20 transition-all duration-300"
+          >
+            <svg className="w-6 h-6 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Dots Indicator */}
+        <div className="flex justify-center space-x-2">
+          {levels.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                index === currentIndex 
+                  ? 'bg-blue-500 scale-125' 
+                  : 'bg-gray-300 hover:bg-gray-400'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Current Level Info */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="font-semibold text-gray-900">레벨 진행도</h3>
-            <span className="text-sm text-gray-600">{getProgressPercent(userProfile.progress)}%</span>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">현재 레벨: {levels.find(level => level.level === userProfile.level)?.name || '알 수 없음'}</h3>
+              <p className="text-gray-600">레벨 {userProfile.level}</p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-blue-600">{getProgressPercent(userProfile.progress)}%</div>
+              <div className="text-sm text-gray-500">진행도</div>
+            </div>
           </div>
+          
           <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
             <div 
-              className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-500" 
+              className={`bg-gradient-to-r ${levels[currentIndex].color} h-3 rounded-full transition-all duration-500`}
               style={{ width: `${getProgressPercent(userProfile.progress)}%` }}
             ></div>
           </div>
-          다음 레벨까지 {100 - getProgressPercent(userProfile.progress)}% 남았어요!
+          
+          <p className="text-sm text-gray-600 text-center">
+            다음 레벨까지 {100 - getProgressPercent(userProfile.progress)}% 남았어요!
+          </p>
         </div>
 
-        {/* 핵심 정보 요약 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center mb-4">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center mr-4">
-                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">운동 루틴</h3>
-                <p className="text-sm text-gray-600">이번 주 {userProfile.progress ?? 0}회 완료</p>
-              </div>
+        {/* Achievement Stats */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center mb-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center mr-4">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
             </div>
-            {/* <div className="text-2xl font-bold text-gray-900 mb-1">
-              {userProfile.progress ?? 0}회
+            <div>
+              <h3 className="font-semibold text-gray-900">운동 성과</h3>
+              <p className="text-sm text-gray-600">이번 주 {userProfile.progress ?? 0}회 완료</p>
             </div>
-            <p className="text-sm text-gray-600">총 완료</p> */}
           </div>
-          {/* 추가 정보 섹션 -> 식단 기록 횟수를 데이터 베이스에서 조회 -> 나중에 추가 */}
-          {/* <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center mb-4">
-              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mr-4">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">식단 기록</h3>
-                <p className="text-sm text-gray-600">오늘 아침 기록 완료</p>
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-gray-900 mb-1">
-              {dummyUserData.dietRecorded}회
-            </div>
-            <p className="text-sm text-gray-600">총 기록</p>
-          </div> */}
         </div>
-
-        {/* 추가 정보 섹션 -> 필요한 데이터 컬렉션이 없음*/}
-        {/* <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <svg className="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              아바타 히스토리
-            </h3>
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-gray-600 text-center">
-                아바타의 성장 스토리가 여기에 표시됩니다.
-                <br />
-                <span className="text-sm">(달성한 목표, 변화 등)</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
-              나의 목표
-            </h3>
-            <div className="bg-gray-50 rounded-xl p-4">
-              <p className="text-gray-600 text-center">
-                등록된 목표가 여기에 표시됩니다.
-                <br />
-                <span className="text-sm">(예: 체지방 5kg 감량, 스쿼트 100kg 달성)</span>
-              </p>
-            </div>
-          </div>
-        </div> */}
       </div>
     </div>
   );

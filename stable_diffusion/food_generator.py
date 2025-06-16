@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Header
 from pydantic import BaseModel
 import os
 import requests
@@ -8,6 +8,7 @@ import base64
 import threading
 from pymongo import MongoClient
 from datetime import datetime, timezone, timedelta
+
 
 MONGO_URI = "mongodb://root:example@192.168.0.199:27017/?authSource=admin"
 DB_NAME = "test"
@@ -119,7 +120,7 @@ def generate_image_from_comfyui(prompt, user_id):
         
         client = MongoClient(MONGO_URI)
         db = client[DB_NAME]
-        user_doc = db.users.find_one({'user_id': user_id})
+        user_doc = db.users.find_one({'user_id': int(user_id)})
 
         if not user_doc or 'level' not in user_doc:
             raise Exception(f"해당 user_id에 대한 level 정보가 없습니다: {user_id}")
@@ -248,28 +249,13 @@ def generate_image_from_comfyui(prompt, user_id):
 
 class FoodRequest(BaseModel):
     food: str
-    # user_id: int
+    user_id: int
 
 @router.post("/generate-food")
-async def generate_food(request: Request):
+async def generate_food(request: FoodRequest, user_id: int = Header(...)):
     try:
-        data = await request.json()
-        food = data.get("food")
-        
-        # user_id 헤더 검증 강화
-        user_id_str = request.headers.get("user-id")
-        print(f"받은 user_id 헤더: '{user_id_str}'")
-        
-        if not user_id_str or user_id_str.strip() == "":
-            raise HTTPException(status_code=400, detail="user_id가 필요합니다.")
-        
-        try:
-            user_id = int(user_id_str.strip())
-        except ValueError:
-            raise HTTPException(status_code=400, detail=f"user_id는 숫자여야 합니다: {user_id_str}")
-        
-        print(f"API 요청 받음: {food}, user_id: {user_id}")
-        image_base64 = generate_image_from_comfyui(food, user_id)
+        print(f"API 요청 받음: {request.food}, user_id: {user_id}")
+        image_base64 = generate_image_from_comfyui(request.food, user_id)
         return {"image_base64": image_base64}
     except Exception as e:
         print(f"API 오류: {str(e)}")

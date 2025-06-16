@@ -3,7 +3,7 @@ export async function generateFoodImage(foodName) {
   
   // user_id가 없으면 임시로 설정 (테스트용)
   if (!userId) {
-    userId = '1'; // 또는 적절한 기본값
+    // userId = '1'; // 또는 적절한 기본값
     sessionStorage.setItem('user_id', userId);
     console.warn('user_id가 없어서 임시값으로 설정:', userId);
   }
@@ -21,7 +21,7 @@ export async function generateFoodImage(foodName) {
         'Content-Type': 'application/json',
         'user-id': userId.toString() // 명시적으로 문자열 변환
       },
-      body: JSON.stringify({ food: foodName })
+      body: JSON.stringify({ food: foodName, user_id: userId })
     });
     
     if (!response.ok) {

@@ -1,8 +1,9 @@
-// frontend/src/pages/Routine/RoutineDetailPage.js - FIXED VERSION
+// frontend/src/pages/Routine/RoutineDetailPage.js - UPDATED WITH COMPLETION POPUP
 import React, { useState, useEffect } from 'react';
-import { Camera, ArrowLeft, Info, MoreVertical, Plus, Trash2, Edit2, Check } from 'lucide-react';
+import { Camera, ArrowLeft, Info, MoreVertical, Plus, Trash2, Edit2, Check, Trophy, Star, ArrowRight } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import workoutService from '../../service/workoutService';
+import ChatbotPage from '../AI/ChatbotPage';
 
 // Exercise enum for supported exercises
 const Exercise = {
@@ -42,6 +43,10 @@ const RoutineDetailPage = () => {
   const [editingExercise, setEditingExercise] = useState(null);
   const [editingSet, setEditingSet] = useState(null);
   const [noRoutineSelected, setNoRoutineSelected] = useState(false);
+  
+  // Completion popup states
+  const [showCompletionPopup, setShowCompletionPopup] = useState(false);
+  const [completionData, setCompletionData] = useState(null);
   
   const getUserId = () => sessionStorage.getItem('user_id');
   const userId = getUserId();
@@ -207,6 +212,7 @@ const RoutineDetailPage = () => {
   const handleDeleteSet = async (exerciseId, setId) => {
     try {
       await workoutService.deleteSet(dayNumber, exerciseId, setId, userId);
+      await workoutService.toggleSetCompletion(dayNumber, exerciseId, setId, userId);
       
       setRoutine(prev => ({
         ...prev,
@@ -221,7 +227,7 @@ const RoutineDetailPage = () => {
         })
       }));
 
-      fetchRoutineDetail();
+      // fetchRoutineDetail();
 
     } catch (err) {
       alert(`세트 삭제에 실패했습니다. 이미 삭제되었거나 존재하지 않는 세트입니다. (setId: ${setId})`);  
@@ -247,15 +253,22 @@ const RoutineDetailPage = () => {
   const handleCompleteRoutine = async () => {
     try {
       const result = await workoutService.completeRoutine(dayNumber, userId);
-      if (result.progress === 4 && result.level === 7) {
-        alert(`${result.message}`);
-      }
-      alert(`루틴 완료! 현재 진행도: ${result.progress}, 레벨: ${result.level}`);
+      
+      // Store completion data and show popup
+      setCompletionData(result);
+      setShowCompletionPopup(true);
+      
+      // Reset routines and refresh
       await workoutService.resetUserRoutines(userId);
       fetchRoutineDetail();
     } catch (err) {
       alert('아직 완료되지 않은 세트가 있습니다!');
     }
+  };
+
+  // Navigate back to routine overview
+  const handleBackToRoutineOverview = () => {
+    navigate('/routine');
   };
 
   // Helper function to get display text for set
@@ -329,7 +342,7 @@ const RoutineDetailPage = () => {
             <button onClick={handleBack} className="mr-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200">
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
-            <h1 className="text-lg font-semib old text-gray-900">운동 상세</h1>
+            <h1 className="text-lg font-semibold text-gray-900">운동 상세</h1>
           </div>
         </header>
         <div className="max-w-screen-xl mx-auto px-4 py-6">
@@ -392,6 +405,79 @@ const RoutineDetailPage = () => {
       </header>
 
       <div className="max-w-screen-xl mx-auto px-4 py-6">
+        {/* Routine Completion Popup Modal */}
+        {showCompletionPopup && completionData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 transform transition-all duration-300 scale-100">
+              <div className="p-8 text-center">
+                {/* Trophy Icon */}
+                <div className="w-24 h-24 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                  <Trophy className="w-14 h-14 text-white" />
+                </div>
+                
+                {/* Completion Message */}
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                  🎉 루틴 완료! 🎉
+                </h2>
+                
+                {/* Progress Information */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 mb-6">
+                  <div className="flex items-center justify-center space-x-8">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center mb-2">
+                        <Star className="w-6 h-6 text-blue-600 mr-2" />
+                        <span className="text-2xl font-bold text-blue-600">{completionData.progress}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 font-medium">현재 진행도</p>
+                    </div>
+                    
+                    <div className="w-px h-12 bg-gray-300"></div>
+                    
+                    <div className="text-center">
+                      <div className="flex items-center justify-center mb-2">
+                        <Trophy className="w-6 h-6 text-purple-600 mr-2" />
+                        <span className="text-2xl font-bold text-purple-600">{completionData.level}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 font-medium">현재 레벨</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Special Level Up Message */}
+                {completionData.progress === 4 && completionData.level === 7 && (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 mb-6">
+                    <p className="text-green-800 font-medium">
+                      🌟 {completionData.message || "축하합니다! 특별한 레벨에 도달했습니다!"} 🌟
+                    </p>
+                  </div>
+                )}
+                
+                <p className="text-gray-600 text-lg leading-relaxed mb-8">
+                  오늘도 정말 수고하셨습니다! 꾸준한 운동으로 목표에 한 발짝 더 가까워졌어요. 💪
+                </p>
+                
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <button
+                    onClick={handleBackToRoutineOverview}
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <span className="text-lg">다른 루틴 보러 가기</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                  
+                  <button
+                    onClick={() => setShowCompletionPopup(false)}
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-xl transition-colors duration-200"
+                  >
+                    계속 보기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Routine Info */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <div className="flex items-center space-x-3 mb-2">
@@ -591,11 +677,51 @@ const RoutineDetailPage = () => {
           ))}
         </div>
 
+      {!showChatbot && (
+        <button
+          className="fixed bottom-6 right-6 z-50 shadow-lg rounded-full bg-blue-600 hover:bg-blue-700 text-white w-16 h-16 flex items-center justify-center transition-colors duration-200"
+          onClick={() => setShowChatbot(true)}
+          aria-label="AI 트레이너 열기"
+        >
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" stroke="#fff" strokeWidth="2" fill="#1976d2"/>
+          </svg>
+        </button>
+      )}
+
+      {showChatbot && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
+          onClick={() => setShowChatbot(false)}
+        >
+          <div
+            className="
+              bg-white rounded-xl shadow-lg
+              w-full max-w-sm sm:max-w-md
+              h-[90vh] max-h-[90vh]
+              flex flex-col relative overflow-hidden
+            "
+            onClick={e => e.stopPropagation()}
+          >
+            <button
+              className="close-chatbot-btn absolute top-2 right-2 z-10 text-2xl text-gray-400 hover:text-gray-700"
+              onClick={() => setShowChatbot(false)}
+              aria-label="챗봇 닫기"
+            >
+              ×
+            </button>
+            <div className="flex-1 overflow-y-auto">
+              <ChatbotPage />
+            </div>
+          </div>
+        </div>
+      )}{/* Chatbot Button */}
+
         {/* Complete Routine Button */}
         <div className="sticky bottom-4">
           <button
             onClick={handleCompleteRoutine}
-            className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl transform hover:scale-105"
+            className="mx-auto w-3/4 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -603,7 +729,9 @@ const RoutineDetailPage = () => {
             <span className="text-lg">루틴 완료</span>
           </button>
         </div>
+
       </div>
+
     </div>
   );
 };

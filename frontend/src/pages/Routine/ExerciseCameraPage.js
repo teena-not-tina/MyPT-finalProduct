@@ -1,24 +1,37 @@
-// frontend/src/pages/Routine/ExerciseCameraPage.js
+// frontend/src/pages/Routine/ExerciseCameraPage.js - UPDATED WITH SUCCESS POPUP
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Camera, CameraOff, RotateCcw, ArrowLeft, Wifi, WifiOff, HelpCircle, X } from 'lucide-react';
+import { Camera, CameraOff, RotateCcw, ArrowLeft, Wifi, WifiOff, HelpCircle, X, CheckCircle, ArrowRight } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-// import workoutService from '../../services/workoutService';
+import workoutService from '../../service/workoutService';
 
 const ExerciseCameraPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Get day and exercise from navigation state
+  // Get navigation data - this should have all the parsed values
   const dayNumber = location.state?.day || 1;
-  const decodedExerciseName = location.state?.exerciseName || "푸시업";
-  const targetReps = 10; // This will come from backend or props
+  const exerciseId = location.state?.exerciseId;
+  const setId = location.state?.setId;
+  const decodedExerciseName = location.state?.exerciseName || "덤벨컬";
+  const setNumber = location.state?.setNumber || 1; // Which set number (for display)
+  const passedTargetValue = location.state?.targetValue; // Already parsed from RoutineDetailPage
+  const passedIsTimeBased = location.state?.isTimeBased;
+  
+  // Exercise and set data
+  const [exerciseData, setExerciseData] = useState(null);
+  const [setData, setSetData] = useState(null);
+  const [targetValue, setTargetValue] = useState(passedTargetValue || 10); // Use parsed value!
+  const [isTimeBased, setIsTimeBased] = useState(passedIsTimeBased || false);
+  const [completionHandled, setCompletionHandled] = useState(false);
+  const [exerciseCompleted, setExerciseCompleted] = useState(false); // New state for completion
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false); // New state for success popup
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [feedback, setFeedback] = useState(null);
-  const [repCount, setRepCount] = useState(0);
+  const [currentValue, setCurrentValue] = useState(0); // reps or time
   const [error, setError] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
@@ -28,12 +41,108 @@ const ExerciseCameraPage = () => {
   const poseRef = useRef(null);
   const cameraRef = useRef(null);
   const wsRef = useRef(null);
-  const animationIdRef = useRef(null);
   const lastSendTimeRef = useRef(0);
   
-  // const userId = 1; // Replace with actual user context
   const getUserId = () => sessionStorage.getItem('user_id');
   const userId = getUserId();
+  
+  // Time-based exercises
+  const TIME_BASED_EXERCISES = ['플랭크', '워밍업: 러닝머신', '마무리: 러닝머신', '러닝머신'];
+  
+  // Validation and initialization
+  useEffect(() => {
+    if (!exerciseId || !setId || passedTargetValue === undefined) {
+      setError('운동 데이터가 없습니다. 루틴 페이지에서 다시 시도하세요.');
+      return;
+    }
+    
+    // Use the data already parsed from RoutineDetailPage
+    debugLog('내비게이션 데이터 사용', { 
+      exerciseId, 
+      setId, 
+      exerciseName: decodedExerciseName,
+      targetValue: passedTargetValue,
+      isTimeBased: passedIsTimeBased,
+      setNumber 
+    });
+    
+    // Create mock set data for display
+    setSetData({
+      id: setId,
+      reps: passedIsTimeBased ? null : passedTargetValue,
+      time: passedIsTimeBased ? `${passedTargetValue}초` : null,
+      completed: false
+    });
+    
+    setExerciseData({
+      id: exerciseId,
+      name: decodedExerciseName
+    });
+    
+  }, [exerciseId, setId, passedTargetValue, passedIsTimeBased, decodedExerciseName, setNumber]);
+  
+  // Fetch exercise and set data
+  const fetchExerciseData = async () => {
+    try {
+      debugLog('운동 데이터 가져오기 시작', { dayNumber, exerciseId, setId, userId });
+      
+      const response = await fetch(`http://192.168.0.29:8001/api/workout/routines/${dayNumber}?user_id=${userId}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const routineData = await response.json();
+      const exercise = routineData.exercises.find(ex => ex.id === exerciseId);
+      
+      if (!exercise) {
+        throw new Error('운동을 찾을 수 없습니다');
+      }
+      
+      const set = exercise.sets.find(s => s.id === setId);
+      if (!set) {
+        throw new Error('세트를 찾을 수 없습니다');
+      }
+      
+      // Determine if exercise is time-based
+      const isTimeBasedExercise = TIME_BASED_EXERCISES.includes(decodedExerciseName);
+      
+      setExerciseData(exercise);
+      setSetData(set);
+      setIsTimeBased(isTimeBasedExercise);
+      
+      // Set target value based on exercise type
+      if (isTimeBasedExercise) {
+        // Handle Korean time format like "5분", "30초"
+        let timeInSeconds = 30; // default
+        if (set.time) {
+          const timeStr = set.time.toString();
+          if (timeStr.includes('분')) {
+            // Extract minutes and convert to seconds
+            const minutes = parseInt(timeStr.replace(/[^0-9]/g, ''));
+            timeInSeconds = minutes * 60;
+          } else if (timeStr.includes('초')) {
+            // Extract seconds
+            timeInSeconds = parseInt(timeStr.replace(/[^0-9]/g, ''));
+          } else {
+            // Plain number, assume seconds
+            timeInSeconds = parseInt(timeStr) || 30;
+          }
+        }
+        setTargetValue(timeInSeconds);
+      } else {
+        setTargetValue(set.reps || 10); // default 10 reps
+      }
+      
+      debugLog('운동 데이터 로드 완료', { 
+        exercise: exercise.name, 
+        setData: set, 
+        isTimeBased: isTimeBasedExercise,
+      //   targetValue: isTimeBasedExercise ? timeInSeconds : (set.reps || 10)
+      });
+      
+    } catch (err) {
+      debugLog('운동 데이터 가져오기 실패', err);
+      setError(`운동 데이터 로딩 실패: ${err.message}`);
+    }
+  };
   
   // 디버그 로그 함수
   const debugLog = (message, data = null) => {
@@ -117,7 +226,7 @@ const ExerciseCameraPage = () => {
   
   // WebSocket 연결
   useEffect(() => {
-    if (!isCameraOn) return;
+    if (!isCameraOn || !targetValue) return;
 
     const connectWebSocket = () => {
       debugLog('WebSocket 연결 시도', `ws://192.168.0.29:8001/api/workout/ws/analyze`);
@@ -132,7 +241,8 @@ const ExerciseCameraPage = () => {
         const initMessage = {
           type: 'init',
           exercise: decodedExerciseName,
-          targetReps: targetReps
+          targetReps: isTimeBased ? 1 : targetValue, // For time-based, we track differently
+          targetTime: isTimeBased ? targetValue : null
         };
         
         debugLog('운동 초기화 메시지 전송', initMessage);
@@ -147,13 +257,30 @@ const ExerciseCameraPage = () => {
           if (data.type === 'feedback') {
             if (data.feedback) {
               setFeedback(data.feedback);
-              if (data.repCount !== undefined) {
-                setRepCount(data.repCount);
-                debugLog(`횟수 업데이트: ${data.repCount}`);
-              }
-              if (data.isComplete) {
-                debugLog('운동 완료!');
-                handleExerciseComplete();
+              
+              // Update current value based on exercise type
+              if (isTimeBased) {
+                // For plank, use hold_time from angle_data
+                const holdTime = data.feedback.angleData?.hold_time || 0;
+                setCurrentValue(Math.floor(holdTime));
+                
+                // Check completion for time-based exercises
+                if (holdTime >= targetValue && !completionHandled) {
+                  debugLog('시간 기반 운동 완료 감지', { holdTime, targetValue });
+                  handleExerciseComplete();
+                }
+              } else {
+                // For rep-based exercises
+                if (data.repCount !== undefined) {
+                  setCurrentValue(data.repCount);
+                  debugLog(`횟수 업데이트: ${data.repCount}`);
+                }
+                
+                // Check completion - only when exactly reaching target
+                if (data.repCount >= targetValue && !completionHandled) {
+                  debugLog('횟수 기반 운동 완료 감지', { repCount: data.repCount, targetValue });
+                  handleExerciseComplete();
+                }
               }
             }
           } else if (data.type === 'init_success') {
@@ -177,9 +304,6 @@ const ExerciseCameraPage = () => {
           } else if (data.type === 'error') {
             debugLog('서버 오류', data.message);
             setError(`서버 오류: ${data.message}`);
-            if (data.supportedExercises) {
-              debugLog('지원 가능한 운동', data.supportedExercises);
-            }
           }
         } catch (parseError) {
           debugLog('메시지 파싱 오류', parseError);
@@ -196,7 +320,7 @@ const ExerciseCameraPage = () => {
         debugLog('WebSocket 연결 해제', `코드: ${event.code}, 이유: ${event.reason}`);
         setIsConnected(false);
         
-        if (isCameraOn && event.code !== 1000) {
+        if (isCameraOn && event.code !== 1000 && !completionHandled) {
           setTimeout(() => {
             debugLog('WebSocket 재연결 시도');
             connectWebSocket();
@@ -215,7 +339,7 @@ const ExerciseCameraPage = () => {
         wsRef.current.close(1000, 'Component unmounting');
       }
     };
-  }, [isCameraOn, decodedExerciseName, targetReps]);
+  }, [isCameraOn, decodedExerciseName, targetValue, isTimeBased, completionHandled]);
   
   // 포즈 결과 처리
   const onPoseResults = useCallback((results) => {
@@ -324,9 +448,12 @@ const ExerciseCameraPage = () => {
   // 운동 리셋
   const resetExercise = () => {
     debugLog('운동 리셋');
-    setRepCount(0);
+    setCurrentValue(0);
     setFeedback(null);
     setShowGuide(false);
+    setCompletionHandled(false);
+    setExerciseCompleted(false);
+    setShowSuccessPopup(false);
     
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'reset' }));
@@ -335,27 +462,45 @@ const ExerciseCameraPage = () => {
   
   // 운동 완료 처리
   const handleExerciseComplete = async () => {
+    if (completionHandled) {
+      debugLog('이미 완료 처리됨, 중복 방지');
+      return;
+    }
+    
+    setCompletionHandled(true);
+    debugLog('운동 완료 처리 시작');
+    
+    // Stop camera immediately to prevent more completions
+    stopCamera();
+    
     try {
-      debugLog('운동 완료 처리 시작');
-      // TODO: Uncomment when workoutService is available
-      // await workoutService.markExerciseComplete(dayNumber, decodedExerciseName, userId);
+      // Use workoutService to mark set as completed
+      await workoutService.toggleSetCompletion(dayNumber, exerciseId, setId, userId);
+      debugLog('세트 완료 API 성공');
       
-      // Show completion message
-      setTimeout(() => {
-        alert(`${decodedExerciseName} 완료! 수고하셨습니다.`);
-        handleBack();
-      }, 1000);
+      // Show completion state and success popup
+      setExerciseCompleted(true);
+      setShowSuccessPopup(true);
       
     } catch (err) {
       debugLog('운동 완료 처리 실패', err);
       setError('운동 완료 저장에 실패했습니다');
+      setCompletionHandled(false); // Allow retry
+      setExerciseCompleted(false);
     }
+  };
+  
+  // 루틴 상세 페이지로 돌아가기
+  const handleBackToRoutine = () => {
+    debugLog('루틴 상세 페이지로 이동');
+    navigate('/routine/detail', {
+      state: { day: dayNumber }
+    });
   };
   
   // 뒤로가기
   const handleBack = () => {
     debugLog('뒤로가기 실행');
-    // Navigate back to the routine detail page with day info
     navigate('/routine/detail', {
       state: { day: dayNumber }
     });
@@ -365,6 +510,10 @@ const ExerciseCameraPage = () => {
   const clearDebugInfo = () => {
     setDebugInfo(null);
   };
+  
+  // Display unit based on exercise type
+  const getDisplayUnit = () => isTimeBased ? '초' : '회';
+  const getDisplayLabel = () => isTimeBased ? '시간' : '횟수';
   
   // 정리
   useEffect(() => {
@@ -384,11 +533,18 @@ const ExerciseCameraPage = () => {
           <div className="flex items-center space-x-3">
             <button
               onClick={handleBack}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
             >
               <ArrowLeft className="w-5 h-5 text-gray-600" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-900 truncate">{decodedExerciseName} 자세 분석</h1>
+            <h1 className="text-lg font-semibold text-gray-900 truncate">
+              {decodedExerciseName} 자세 분석
+            </h1>
+            {setData && (
+              <span className="text-sm text-gray-500">
+                세트 {setNumber}: {isTimeBased ? `${targetValue}초` : `${targetValue}회`}
+              </span>
+            )}
           </div>
           
           <div className="flex items-center gap-2">
@@ -463,7 +619,7 @@ const ExerciseCameraPage = () => {
               
               <div className="flex items-center space-x-2">
                 <span className="text-lg font-semibold text-gray-900">
-                  횟수: <span className="text-blue-600">{repCount}</span> / {targetReps}
+                  {getDisplayLabel()}: <span className="text-blue-600">{currentValue}</span> / {targetValue}{getDisplayUnit()}
                 </span>
               </div>
             </div>
@@ -472,11 +628,52 @@ const ExerciseCameraPage = () => {
             <div className="w-48 bg-gray-200 rounded-full h-3">
               <div 
                 className="bg-gradient-to-r from-blue-600 to-blue-700 h-3 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min((repCount / targetReps) * 100, 100)}%` }}
+                style={{ width: `${Math.min((currentValue / targetValue) * 100, 100)}%` }}
               />
             </div>
           </div>
         </div>
+        
+        {/* Success Popup Modal */}
+        {showSuccessPopup && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
+              <div className="p-8 text-center">
+                {/* Success Icon */}
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle className="w-12 h-12 text-green-600" />
+                </div>
+                
+                {/* Success Message */}
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  세트 완료! 🎉
+                </h2>
+                <p className="text-gray-600 text-lg leading-relaxed mb-8">
+                  잘하셨어요! 지금처럼만 계속하면 금방 목표에 도달할 수 있어요. 
+                  잠깐 쉬었다가 다음 세트 가볼까요?
+                </p>
+                
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <button
+                    onClick={handleBackToRoutine}
+                    className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 shadow-lg hover:shadow-xl transform hover:scale-105"
+                  >
+                    <span className="text-lg">다음 세트 하러 가기</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                  
+                  <button
+                    onClick={() => setShowSuccessPopup(false)}
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-6 rounded-xl transition-colors duration-200"
+                  >
+                    잠시 더 보기
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Video/Canvas Container */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
@@ -670,29 +867,6 @@ const ExerciseCameraPage = () => {
                 <p className="text-red-700 text-sm">{error}</p>
               </div>
             </div>
-          </div>
-        )}
-        
-        {/* Debug Info */}
-        {debugInfo && (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-semibold text-gray-800 flex items-center">
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-                디버그 정보
-              </h4>
-              <button 
-                onClick={clearDebugInfo}
-                className="text-xs text-gray-500 hover:text-gray-700 bg-white px-2 py-1 rounded border transition-colors duration-200"
-              >
-                지우기
-              </button>
-            </div>
-            <pre className="text-xs text-gray-600 whitespace-pre-wrap max-h-40 overflow-y-auto bg-white p-3 rounded border font-mono">
-              {debugInfo}
-            </pre>
           </div>
         )}
       </div>

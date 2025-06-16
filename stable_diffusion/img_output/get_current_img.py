@@ -71,24 +71,46 @@ async def root():
 
 
 @router.get("/user/{user_id}/image")
-async def get_user_image(user_id: int):
+async def get_user_image(user_id: int, level: Optional[int] = None):
     """
     user_id를 기반으로 user_stat의 character 값에 따라 
     food 필드가 있으면 food 이미지를, 없으면 images 딕셔너리에서 반환
     """
     # decoded_user_id = unquote(user_id)
-    logger.info(f"이미지 요청: user_id={user_id}")
+    logger.info(f"이미지 요청: user_id={user_id}, level={level}")
 
+    # try:
+    #     db_user_image, db_user_stats = await get_database_connection()
+        
+    #     # 1. user_stat에서 character 값 조회
+    #     user_stat = await db_user_stats.users.find_one({"user_id": user_id})
+    #     if not user_stat:
+    #         logger.warning(f"사용자 통계 정보 없음: {user_id}")
+    #         raise HTTPException(status_code=404, detail="User stat not found")
+        
     try:
         db_user_image, db_user_stats = await get_database_connection()
         
-        # 1. user_stat에서 character 값 조회
-        user_stat = await db_user_stats.users.find_one({"user_id": user_id})
-        if not user_stat:
-            logger.warning(f"사용자 통계 정보 없음: {user_id}")
-            raise HTTPException(status_code=404, detail="User stat not found")
+        # If level parameter is provided, use it directly
+        if level is not None:
+            character = level
+            logger.info(f"요청된 레벨 사용: character={character}")
+        else:
+            # 1. user_stat에서 character 값 조회 (기존 로직)
+            user_stat = await db_user_stats.users.find_one({"user_id": user_id})
+            if not user_stat:
+                logger.warning(f"사용자 통계 정보 없음: {user_id}")
+                raise HTTPException(status_code=404, detail="User stat not found")
+            
+            character = user_stat.get("level")
+            logger.info(f"사용자 현재 레벨 사용: character={character}")
         
-        character = user_stat.get("level")
+        # Validate character value
+        if not character or character not in CHARACTER_TAG_MAPPING:
+            logger.warning(f"잘못된 level 값: {character}")
+            raise HTTPException(status_code=400, detail="Invalid character value")
+        
+        # character = user_stat.get("level")
         if not character or character not in CHARACTER_TAG_MAPPING:
             logger.warning(f"잘못된 level 값: {character}")
             raise HTTPException(status_code=400, detail="Invalid character value")
@@ -152,20 +174,42 @@ async def get_user_image(user_id: int):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
      
 @router.get("/user/{user_id}/image/direct")
-async def get_user_image_direct(user_id: int):
+async def get_user_image_direct(user_id: int, level: Optional[int] = None):
     """
     이미지를 직접 반환 (img src로 사용 가능)
     """
     # decoded_user_id = unquote(user_id)
     
+    # try:
+    #     db_user_image, db_user_stats = await get_database_connection()
+
     try:
         db_user_image, db_user_stats = await get_database_connection()
         
-        # user_stats에서 character 값 조회
-        user_stat = await db_user_stats.users.find_one({"user_id": user_id})
+        # If level parameter is provided, use it directly
+        if level is not None:
+            character = level
+            logger.info(f"요청된 레벨 사용: character={character}")
+        else:
+            # 1. user_stat에서 character 값 조회 (기존 로직)
+            user_stat = await db_user_stats.users.find_one({"user_id": user_id})
+            if not user_stat:
+                logger.warning(f"사용자 통계 정보 없음: {user_id}")
+                raise HTTPException(status_code=404, detail="User stat not found")
+            
+            character = user_stat.get("level")
+            logger.info(f"사용자 현재 레벨 사용: character={character}")
         
-        if not user_stat:
-            raise HTTPException(status_code=404, detail="User stat not found")
+        # Validate character value
+        if not character or character not in CHARACTER_TAG_MAPPING:
+            logger.warning(f"잘못된 level 값: {character}")
+            raise HTTPException(status_code=400, detail="Invalid character value")
+        
+        # user_stats에서 character 값 조회
+        # user_stat = await db_user_stats.users.find_one({"user_id": user_id})
+        
+        # if not user_stat:
+        #     raise HTTPException(status_code=404, detail="User stat not found")
         
         character = user_stat.get("level")
         if not character or character not in CHARACTER_TAG_MAPPING:
@@ -233,57 +277,34 @@ async def get_user_character_info(user_id: str):
         logger.error(f"캐릭터 정보 조회 오류: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-
-# @router.get("/api/user/profile")
-# async def get_user_profile(user_id: int = Depends(verify_token)):
-#     """사용자 프로필 정보 조회"""
-#     try:
-#         db_user_image, db_user_stats = await get_database_connection()
-#         # users 컬렉션으로 명확히 지정
-#         users_collection = db_user_stats.users
-
-#         # 사용자의 모든 생성된 이미지 수 조회
-#         total_images = await users_collection.count_documents({"user_id": user_id})
+@router.get("/user/{user_id}/profile")
+async def get_user_profile(user_id: int):
+    """사용자 프로필 정보 조회"""
+    logger.info(f"프로필 요청: user_id={user_id}")
+    
+    try:
+        db_user_image, db_user_stats = await get_database_connection()
         
-#         # 가장 최근 생성 날짜 조회
-#         latest_creation = await users_collection.find_one(
-#             {"user_id": user_id},
-#             sort=[("created_at", -1)]
-#         )
+        # Get user stats from the users collection (same as get_user_image)
+        user_stat = await db_user_stats.users.find_one({"user_id": user_id})
         
-#         return {
-#             "user_id": user_id,
-#             "total_images": total_images,
-#             "latest_creation": latest_creation.get("created_at") if latest_creation else None
-#         }
+        if not user_stat:
+            logger.warning(f"사용자 통계 정보 없음: {user_id}")
+            raise HTTPException(status_code=404, detail="User stat not found")
         
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-
-
-# @router.get("/api/user/profile")
-# async def get_user_profile(user_id: int = Depends(verify_token)):
-#     """사용자 프로필 정보 조회"""
-#     try:
-#         # 사용자의 모든 생성된 이미지 수 조회
-#         total_images = await db_user_stats.count_documents({"user_id": user_id})
+        # Extract user profile information
+        profile_data = {
+            "user_id": user_id,
+            "email": user_stat.get("email", f"user{user_id}@example.com"),
+            "level": user_stat.get("level", 1),
+            "progress": user_stat.get("progress", 0)
+        }
         
-#         # 가장 최근 생성 날짜 조회
-#         latest_creation = await db_user_stats.find_one(
-#             {"user_id": user_id},
-#             sort=[("created_at", -1)]
-#         )
+        logger.info(f"프로필 반환 성공: user_id={user_id}")
+        return profile_data
         
-#         return {
-#             "user_id": user_id,
-#             "total_images": total_images,
-#             "latest_creation": latest_creation.get("created_at") if latest_creation else None
-#         }
-        
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"프로필 조회 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

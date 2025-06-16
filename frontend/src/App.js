@@ -17,6 +17,7 @@ import RoutineDetailPage from './pages/Routine/RoutineDetailPage';
 import RoutineOverviewPage from './pages/Routine/RoutineOverviewPage';
 // 챗봇 관련 페이지
 import ChatbotPage from './pages/AI/ChatbotPage';
+import ChatbotPage2 from './pages/AI/ChatbotPage2';
 import ChatbotAvatarPage from './pages/AI/AvatarProgressPage';
 // CV
 import CVMainPage from './pages/CV/MainPage';
@@ -129,7 +130,7 @@ function Navigation() {
     <nav className="bg-white shadow-sm border-b p-4">
       <div className="flex justify-between items-center">
         <div className="flex space-x-4">
-          <Link to="/" className="text-blue-600 hover:text-blue-800 font-medium">
+          <Link to="/dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
             <img
               src="/img.png"
               alt="Home"
@@ -242,9 +243,9 @@ function App() {
               </PrivateRoute>
             } />
             <Route path="/diet" element={
-              <PrivateRoute>
+
                 <IngredientInputPage />
-              </PrivateRoute>
+
             } />
             <Route path="/diet/recommendation" element={
               <PrivateRoute>
@@ -270,6 +271,9 @@ function App() {
               <PrivateRoute>
                 <ChatbotPage />
               </PrivateRoute>
+            } />
+            <Route path="/chatbot2" element={
+                <ChatbotPage2 />
             } />
             <Route path="/chatbot/avatar" element={
               <PrivateRoute>

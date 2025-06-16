@@ -13,7 +13,7 @@ const UserDashboard = () => {
   };
 
   const handleDietRecord = () => {
-    navigate('/diet'); // /diet 경로로 이동
+    navigate('/chatbot2'); // /diet 경로로 이동
   };
 
   const [dashboardData, setDashboardData] = useState(null);

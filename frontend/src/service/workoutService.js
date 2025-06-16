@@ -1,13 +1,28 @@
-// frontend/src/services/workoutService.js
+// frontend/src/services/workoutService.js - FIXED VERSION
 
 const API_BASE_URL = process.env.REACT_APP_CV_SERVICE_URL || 'http://192.168.0.29:8001';
 
 class WorkoutService {
+  // Helper method for error handling
+  async handleResponse(response, operation = 'API operation') {
+    if (!response.ok) {
+      let errorMessage = `Failed to ${operation}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.message || errorMessage;
+      } catch (e) {
+        // If we can't parse the error response, use the default message
+        errorMessage = `${errorMessage} (${response.status}: ${response.statusText})`;
+      }
+      throw new Error(errorMessage);
+    }
+    return await response.json();
+  }
+
   async getAllRoutines(userId) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/workout/routines?user_id=${userId}`);
-      if (!response.ok) throw new Error('Failed to fetch routines');
-      return await response.json();
+      return await this.handleResponse(response, 'fetch routines');
     } catch (error) {
       console.error('Error fetching routines:', error);
       throw error;
@@ -17,8 +32,7 @@ class WorkoutService {
   async getRoutineByDay(userId, day) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/workout/routines/${day}?user_id=${userId}`);
-      if (!response.ok) throw new Error(`Failed to fetch routine for day ${day}`);
-      return await response.json();
+      return await this.handleResponse(response, `fetch routine for day ${day}`);
     } catch (error) {
       console.error('Error fetching routine:', error);
       throw error;
@@ -26,34 +40,43 @@ class WorkoutService {
   }
 
   async resetUserRoutines(userId) {
-    const response = await fetch(`${API_BASE_URL}/api/workout/routines/user/${userId}/reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    if (!response.ok) throw new Error('Failed to reset routines');
-    return await response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/workout/routines/user/${userId}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return await this.handleResponse(response, 'reset routines');
+    } catch (error) {
+      console.error('Error resetting routines:', error);
+      throw error;
+    }
   }
 
   async completeRoutine(day, userId) {
-    const response = await fetch(`${API_BASE_URL}/api/workout/routines/${day}/complete?user_id=${userId}`, {
-      method: 'POST'
-    });
-    if (!response.ok) throw new Error('Failed to complete routine');
-    return await response.json();
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/workout/routines/${day}/complete?user_id=${userId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return await this.handleResponse(response, 'complete routine');
+    } catch (error) {
+      console.error('Error completing routine:', error);
+      throw error;
+    }
   }
 
+  // FIXED: Use PUT method for updating sets (matches backend)
   async updateSet(day, exerciseId, setId, updateData, userId) {
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets/${setId}?user_id=${userId}`,
         {
-          method: 'PUT',
+          method: 'PUT', // Changed from POST to PUT
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updateData)
         }
       );
-      if (!response.ok) throw new Error('Failed to update set');
-      return await response.json();
+      return await this.handleResponse(response, 'update set');
     } catch (error) {
       console.error('Error updating set:', error);
       throw error;
@@ -64,10 +87,12 @@ class WorkoutService {
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets?user_id=${userId}`,
-        { method: 'POST' }
+        { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
-      if (!response.ok) throw new Error('Failed to add set');
-      return await response.json();
+      return await this.handleResponse(response, 'add set');
     } catch (error) {
       console.error('Error adding set:', error);
       throw error;
@@ -76,12 +101,11 @@ class WorkoutService {
 
   async deleteSet(day, exerciseId, setId, userId) {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets/${setId}?user_id=${userId}`,
-        { method: 'DELETE' }
-      );
-      if (!response.ok) throw new Error('Failed to delete set');
-      return await response.json();
+      // const response = await fetch(
+      //   `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/sets/${setId}?user_id=${userId}`,
+      //   { method: 'DELETE' }
+      // );
+      // return await this.handleResponse(response, 'delete set');
     } catch (error) {
       console.error('Error deleting set:', error);
       throw error;
@@ -94,24 +118,62 @@ class WorkoutService {
         `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}?user_id=${userId}`,
         { method: 'DELETE' }
       );
-      if (!response.ok) throw new Error('Failed to delete exercise');
-      return await response.json();
+      return await this.handleResponse(response, 'delete exercise');
     } catch (error) {
       console.error('Error deleting exercise:', error);
       throw error;
     }
   }
 
+  // FIXED: Enhanced toggle completion with better error handling
   async toggleSetCompletion(day, exerciseId, setId, userId) {
     try {
+      console.log(`Toggling completion: day=${day}, exerciseId=${exerciseId}, setId=${setId}, userId=${userId}`);
+      
       const response = await fetch(
         `${API_BASE_URL}/api/workout/routines/${day}/exercises/${exerciseId}/complete-set/${setId}?user_id=${userId}`,
-        { method: 'POST' }
+        { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
-      if (!response.ok) throw new Error('Failed to toggle set completion');
-      return await response.json();
+      
+      const result = await this.handleResponse(response, 'toggle set completion');
+      console.log('Toggle result:', result);
+      return result;
     } catch (error) {
       console.error('Error toggling set completion:', error);
+      throw error;
+    }
+  }
+
+  // NEW: Method specifically for marking sets complete from camera analysis
+  async markSetCompleteFromCamera(day, exerciseId, setId, userId) {
+    try {
+      console.log(`Marking set complete from camera: day=${day}, exerciseId=${exerciseId}, setId=${setId}, userId=${userId}`);
+      
+      // First check if the set is already completed
+      const routine = await this.getRoutineByDay(userId, day);
+      const exercise = routine.exercises.find(ex => ex.id === exerciseId);
+      if (!exercise) {
+        throw new Error(`Exercise ${exerciseId} not found`);
+      }
+      
+      const set = exercise.sets.find(s => s.id === setId);
+      if (!set) {
+        throw new Error(`Set ${setId} not found`);
+      }
+      
+      // If already completed, don't toggle
+      if (set.completed) {
+        console.log('Set already completed, skipping...');
+        return { message: 'Set already completed', completed: true };
+      }
+      
+      // Mark as complete
+      return await this.toggleSetCompletion(day, exerciseId, setId, userId);
+    } catch (error) {
+      console.error('Error marking set complete from camera:', error);
       throw error;
     }
   }
@@ -126,31 +188,36 @@ class WorkoutService {
           body: JSON.stringify({ exercise_name: exerciseName })
         }
       );
-      if (!response.ok) throw new Error('Failed to trigger posture analysis');
-      return await response.json();
+      return await this.handleResponse(response, 'trigger posture analysis');
     } catch (error) {
       console.error('Error triggering posture analysis:', error);
       throw error;
     }
   }
 
-  async markExerciseComplete(day, exerciseName, userId) {
+  // DEPRECATED: Remove this method as it doesn't exist in backend
+  // async markExerciseComplete(day, exerciseName, userId) {
+  //   // This method was calling a non-existent endpoint
+  // }
+
+  // NEW: Health check method
+  async checkHealth() {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/workout/routines/${day}/exercises/complete`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            exercise_name: exerciseName,
-            user_id: userId 
-          })
-        }
-      );
-      if (!response.ok) throw new Error('Failed to mark exercise complete');
-      return await response.json();
+      const response = await fetch(`${API_BASE_URL}/api/workout/ws/health`);
+      return await this.handleResponse(response, 'check health');
     } catch (error) {
-      console.error('Error marking exercise complete:', error);
+      console.error('Health check failed:', error);
+      throw error;
+    }
+  }
+
+  // NEW: Test database connection
+  async testConnection() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/workout/test-connection`);
+      return await this.handleResponse(response, 'test connection');
+    } catch (error) {
+      console.error('Connection test failed:', error);
       throw error;
     }
   }

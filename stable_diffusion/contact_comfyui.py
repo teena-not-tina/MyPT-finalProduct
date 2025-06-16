@@ -580,3 +580,5 @@ async def get_user_profile(user_id: int = Depends(verify_token)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
