@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect  } from 'react';
+import { useNavigate } from "react-router-dom";
 
 const API_URL = 'http://192.168.0.18:8004';
 
@@ -15,19 +16,20 @@ function ChatbotPage() {
   ]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef();
+  const navigate = useNavigate();
 
-  // 사용자 ID 가져오기 함수 - 정수로 생성
-const getUserNum = () => {
-  let user_num = sessionStorage.getItem('user_id');
-  
-  // if (!userId) {
-  //   // 정수 형태의 user_id 생성 (1000-999999 범위)
-  //   userId = (Math.floor(Math.random() * 999000) + 1000).toString();
-  //   sessionStorage.setItem('user_id', userId);
-  //   console.log('새로운 user_id 생성:', userId);
-  // }
-  
-  return user_num
+
+  const getUserId = () => {
+  let userId = sessionStorage.getItem('user_id');
+
+  if (!userId) {
+    // 정수 형태의 user_id 생성 (1000-999999 범위)
+    userId = (Math.floor(Math.random() * 999000) + 1000).toString();
+    sessionStorage.setItem('user_id', userId);
+    console.log('새로운 user_id 생성:', userId);
+  }
+
+  return userId;
 };
 
   // 이미지 base64 변환
@@ -106,26 +108,32 @@ const getUserNum = () => {
     if (data.status === 'success') {
       (data.detections || []).forEach(det => {
         addMessage({ from: 'bot', text: det.label });
+
+        // 특정 메시지 확인하여 페이지 이동
+        if (det.label === '이미지가 반영됩니다. 잠시 후 메인 페이지로 이동합니다.') {
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 5000);
+        }
       });
+
       if (data.suggestions) {
         setSuggestions(data.suggestions);
-        setShowSuggestions(true); // 봇 응답 후 제안 버튼 표시
+        setShowSuggestions(true);
       }
+
       if (isImageResponse && !data.suggestions) {
-        setShowSuggestions(true); // 이미지 응답인 경우 기본 제안 표시
+        setShowSuggestions(true);
       }
     } else {
-      addMessage({ from: 'bot', text: data.message || '오류가 발생했습니다.' });
+      addMessage({ 
+        from: 'bot', 
+        text: data.message || '오류가 발생했습니다.' 
+      });
     }
   };
 
-  // user_id 관리 (메모리)
-  function getUserId() {
-    if (!window.chatbotUserId) {
-      window.chatbotUserId = Date.now();
-    }
-    return window.chatbotUserId;
-  }
+
 
   // 엔터키 입력 처리
   const handleKeyDown = (e) => {
