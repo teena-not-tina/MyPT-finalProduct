@@ -162,163 +162,157 @@ function ChatbotPage() {
   };
 
 
-  return (
+return (
     <div style={{
-      position: 'relative',
+      maxWidth: 500,
       width: '100%',
-      height: '100vh',
-      background: '#f5f5f5',
+      margin: '0 auto',
+      background: '#fff',
+      borderRadius: 12,
+      boxShadow: '0 2px 8px #eee',
+      maxHeight: '90vh', // ✅ 모바일 대응을 위한 최대 높이
       display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center'
+      flexDirection: 'column',
+      height: '90vh' // ✅ 높이 고정
     }}>
-      {/* 대시보드 버튼 - 좌측 상단 */}
-      <button
-        onClick={goToDashboard}
-        style={{
-          position: 'absolute',
-          top: 20,
-          left: 20,
-          padding: '12px 20px',
-          background: '#2196F3',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 8,
-          fontSize: 16,
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          boxShadow: '0 2px 8px rgba(33, 150, 243, 0.3)',
-          transition: 'all 0.2s ease',
-          zIndex: 1000
-        }}
-        onMouseEnter={(e) => {
-          e.target.style.background = '#1976D2';
-          e.target.style.transform = 'translateY(-2px)';
-          e.target.style.boxShadow = '0 4px 12px rgba(33, 150, 243, 0.4)';
-        }}
-        onMouseLeave={(e) => {
-          e.target.style.background = '#2196F3';
-          e.target.style.transform = 'translateY(0px)';
-          e.target.style.boxShadow = '0 2px 8px rgba(33, 150, 243, 0.3)';
-        }}
-      >
-        ← 메인 페이지
-      </button>
-
-      {/* 챗봇 컨테이너 */}
+      {/* 상단 헤더 */}
       <div style={{
-        maxWidth: 500, 
-        width: '90%',
-        background: '#fff', 
-        borderRadius: 12,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.1)', 
-        minHeight: 600, 
-        display: 'flex', 
-        flexDirection: 'column'
+        padding: 16,
+        borderBottom: '1px solid #eee',
+        background: '#f8fafc',
+        flexShrink: 0
       }}>
-        <div style={{padding: 16, borderBottom: '1px solid #eee', background: '#f8fafc'}}>
-          <b>🍳 요리 추천 챗봇</b>
-        </div>
-        <div style={{flex: 1, overflowY: 'auto', padding: 16}}>
-          {messages.map((msg, i) => (
-            <div key={i} style={{
-              textAlign: msg.from === 'user' ? 'right' : 'left',
-              margin: '8px 0'
+        <b>🍳 요리 추천 챗봇</b>
+      </div>
+
+      {/* 채팅 메시지 영역 */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: 16
+      }}>
+        {messages.map((msg, i) => (
+          <div key={i} style={{
+            textAlign: msg.from === 'user' ? 'right' : 'left',
+            margin: '8px 0'
+          }}>
+            <span style={{
+              display: 'inline-block',
+              background: msg.from === 'user' ? '#e0f7fa' : '#f1f1f1',
+              borderRadius: 8,
+              padding: 10,
+              maxWidth: '80%',
+              wordBreak: 'break-word'
             }}>
-              <span style={{
-                display: 'inline-block',
-                background: msg.from === 'user' ? '#e0f7fa' : '#f1f1f1',
-                borderRadius: 8,
-                padding: 10,
-                maxWidth: '80%',
-                wordBreak: 'break-all'
-              }}>
-                {typeof msg.text === 'string'
-                  ? <span dangerouslySetInnerHTML={{__html: msg.text.replace(/\n/g, '<br/>')}} />
-                  : msg.text}
-              </span>
-            </div>
-          ))}
-          
-          {/* 제안 버튼들을 채팅 메시지처럼 표시 */}
-          {showSuggestions && !isProcessing && (
+              {typeof msg.text === 'string'
+                ? <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+                : msg.text}
+            </span>
+          </div>
+        ))}
+
+        {/* 제안 버튼 */}
+        {showSuggestions && !isProcessing && (
+          <div style={{ textAlign: 'left', margin: '8px 0' }}>
             <div style={{
-              textAlign: 'left',
-              margin: '8px 0'
+              display: 'inline-block',
+              background: '#f1f1f1',
+              borderRadius: 8,
+              padding: 10,
+              maxWidth: '80%'
             }}>
-              <div style={{
-                display: 'inline-block',
-                background: '#f1f1f1',
-                borderRadius: 8,
-                padding: 10,
-                maxWidth: '80%'
-              }}>
-                <div style={{marginBottom: 8, fontSize: 14, color: '#666'}}>
-                  💡 이런 질문은 어떠세요?
-                </div>
-                <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-                  {suggestions.map((s, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSuggestion(s)}
-                      style={{
-                        background: '#4caf50', 
-                        color: '#fff',
-                        border: 'none', 
-                        borderRadius: 6, 
-                        padding: '8px 12px',
-                        cursor: 'pointer', 
-                        fontSize: 13,
-                        textAlign: 'left',
-                        transition: 'background-color 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.target.style.background = '#45a049'}
-                      onMouseLeave={(e) => e.target.style.background = '#4caf50'}
-                    >{s}</button>
-                  ))}
-                </div>
+              <div style={{ marginBottom: 8, fontSize: 14, color: '#666' }}>
+                💡 이런 질문은 어떠세요?
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSuggestion(s)}
+                    style={{
+                      background: '#4caf50',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 6,
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      textAlign: 'left'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = '#45a049'}
+                    onMouseLeave={(e) => e.target.style.background = '#4caf50'}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
-          
-          {isProcessing && (
-            <div style={{textAlign: 'left', color: '#aaa', margin: '8px 0'}}>챗봇이 답변 중입니다...</div>
-          )}
-        </div>
-
-        <div style={{padding: 12, borderTop: '1px solid #eee', background: '#fafbfc'}}>
-          <div style={{display: 'flex', gap: 8}}>
-            <button
-              onClick={() => fileInputRef.current.click()}
-              style={{padding: '0 12px', fontSize: 20, background: '#fff', border: '1px solid #ddd', borderRadius: 6}}
-              disabled={isProcessing}
-            >📷</button>
-            <input
-              type="file"
-              accept="image/*"
-              style={{display: 'none'}}
-              ref={fileInputRef}
-              onChange={handleFileChange}
-            />
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="메시지를 입력하세요..."
-              style={{flex: 1, padding: 10, borderRadius: 6, border: '1px solid #ddd'}}
-              disabled={isProcessing}
-            />
-            <button
-              onClick={sendText}
-              style={{padding: '0 16px', background: '#4caf50', color: '#fff', border: 'none', borderRadius: 6}}
-              disabled={isProcessing || !input.trim()}
-            >전송</button>
           </div>
+        )}
+
+        {/* 로딩 메시지 */}
+        {isProcessing && (
+          <div style={{ textAlign: 'left', color: '#aaa', margin: '8px 0' }}>
+            챗봇이 답변 중입니다...
+          </div>
+        )}
+      </div>
+
+      {/* 하단 입력창 */}
+      <div style={{
+        padding: 12,
+        borderTop: '1px solid #eee',
+        background: '#fafbfc',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => fileInputRef.current.click()}
+            style={{
+              padding: '0 12px',
+              fontSize: 20,
+              background: '#fff',
+              border: '1px solid #ddd',
+              borderRadius: 6
+            }}
+            disabled={isProcessing}
+          >📷</button>
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            ref={fileInputRef}
+            onChange={handleFileChange}
+          />
+          <input
+            type="text"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="메시지를 입력하세요..."
+            style={{
+              flex: 1,
+              padding: 10,
+              borderRadius: 6,
+              border: '1px solid #ddd'
+            }}
+            disabled={isProcessing}
+          />
+          <button
+            onClick={sendText}
+            style={{
+              padding: '0 16px',
+              background: '#4caf50',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6
+            }}
+            disabled={isProcessing || !input.trim()}
+          >전송</button>
         </div>
       </div>
     </div>
   );
-}
+};
 
 export default ChatbotPage;
