@@ -14,6 +14,14 @@ import traceback
 from typing import Optional
 from bson import ObjectId
 from datetime import datetime
+import pytz  # ✅ 추가
+
+# ✅ 한국 시간대 설정
+KST = pytz.timezone('Asia/Seoul')
+
+def get_korea_time():
+    """한국 시간 반환"""
+    return datetime.now(KST)
 
 
 from config.settings import (
@@ -461,29 +469,132 @@ async def delete_user_data(user_id: str, data_type: str = None):
 
 @app.get("/api/user/{user_id}/routines")
 async def get_user_routines(user_id: str):
-    """사용자 운동 루틴 조회 (user_id 기반)"""
+    """사용자 운동 루틴 조회 (user_id 기반) - 저장 검증 포함"""
     try:
         # user_id 유효성 검증
         if not user_id or user_id in ["None", "null"]:
             raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
         
+        # 🔥 DB에서 루틴 조회
         routines = analyzer.db.get_user_routines(user_id)
         has_routines = analyzer.db.has_user_routines(user_id)
+        
+        # 🔥 추가 검증 정보 포함
+        verification_info = {
+            "db_query_success": True,
+            "routines_count": len(routines),
+            "has_routines_flag": has_routines,
+            "query_time": get_korea_time().isoformat()
+        }
+        
+        logger.info(f"✅ 사용자 {user_id} 루틴 조회 완료: {len(routines)}개")
         
         response_data = {
             "success": True,
             "user_id": user_id,
             "has_routines": has_routines,
             "routines": routines,
-            "total_days": len(routines)
+            "total_days": len(routines),
+            "verification": verification_info
         }
         return CustomJSONResponse(response_data)
+        
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"사용자 루틴 조회 실패: {str(e)}")
-        raise HTTPException(status_code=500, detail="사용자 루틴 조회에 실패했습니다.")
+        
+        # 오류 정보 포함한 응답
+        error_response = {
+            "success": False,
+            "user_id": user_id,
+            "has_routines": False,
+            "routines": [],
+            "total_days": 0,
+            "error": str(e),
+            "verification": {
+                "db_query_success": False,
+                "error_details": str(e)
+            }
+        }
+        return CustomJSONResponse(error_response)
 
+# 🔥 NEW: 루틴 저장 상태 디버깅을 위한 엔드포인트
+@app.get("/debug/routine-save-status/{user_id}")
+async def debug_routine_save_status(user_id: str):
+    """루틴 저장 상태 디버깅"""
+    try:
+        if not user_id or user_id in ["None", "null"]:
+            return CustomJSONResponse({
+                "success": False,
+                "error": "유효하지 않은 사용자 ID"
+            })
+        
+        # DB 연결 테스트
+        try:
+            db_connection_test = analyzer.db.collection.count_documents({})
+            db_connected = True
+        except Exception as db_error:
+            db_connection_test = 0
+            db_connected = False
+        
+        # 사용자 루틴 조회
+        try:
+            user_routines = analyzer.db.get_user_routines(user_id)
+            has_user_routines = analyzer.db.has_user_routines(user_id)
+            routines_query_success = True
+        except Exception as query_error:
+            user_routines = []
+            has_user_routines = False
+            routines_query_success = False
+        
+        # 사용자 벡터DB 상태
+        try:
+            user_vector_data = analyzer.user_vector_store.get_user_latest_data(user_id)
+            vector_db_success = True
+        except Exception as vector_error:
+            user_vector_data = []
+            vector_db_success = False
+        
+        # 전체 통계
+        try:
+            total_routines = analyzer.db.collection.count_documents({})
+            total_users_with_routines = len(analyzer.db.collection.distinct("user_id"))
+        except:
+            total_routines = 0
+            total_users_with_routines = 0
+        
+        debug_info = {
+            "success": True,
+            "user_id": user_id,
+            "timestamp": get_korea_time().isoformat(),
+            "db_status": {
+                "connected": db_connected,
+                "total_routines_in_db": total_routines,
+                "total_users_with_routines": total_users_with_routines
+            },
+            "user_specific": {
+                "routines_query_success": routines_query_success,
+                "has_routines": has_user_routines,
+                "routines_count": len(user_routines),
+                "routines": user_routines
+            },
+            "vector_db_status": {
+                "query_success": vector_db_success,
+                "user_data_count": len(user_vector_data)
+            }
+        }
+        
+        return CustomJSONResponse(debug_info)
+        
+    except Exception as e:
+        logger.error(f"루틴 저장 상태 디버깅 실패: {str(e)}")
+        return CustomJSONResponse({
+            "success": False,
+            "error": str(e),
+            "user_id": user_id
+        })
+        
 @app.post("/api/user/{user_id}/progress")
 async def add_user_progress(user_id: str, progress_data: dict):
     """사용자 운동 진행 상황 추가 (user_id 기반)"""
@@ -540,20 +651,21 @@ async def process_user_info(data: dict):
 
 @app.post("/api/workout/recommend")
 async def recommend_workout(data: dict):
-    """운동 루틴 추천 (사용자 ID 기반 개인화)"""
+    """운동 루틴 추천 (사용자 ID 기반 개인화) - 저장 보장"""
     try:
         inbody_data = data.get("inbody", {})
         preferences = data.get("preferences", {})
         user_id = data.get("user_id")
         
-        logger.info("운동 루틴 추천 시작")
+        logger.info("🎯 운동 루틴 추천 시작")
         logger.info(f"사용자 ID: {user_id}")
         logger.info(f"인바디 데이터: {inbody_data}")
         logger.info(f"운동 선호도: {preferences}")
         
-        # user_id 유효성 검증
+        # user_id 유효성 검증 및 기본값 설정
         if not user_id or user_id in ["None", "null"]:
-            logger.warning("유효하지 않은 user_id로 운동 루틴 추천 요청")
+            logger.warning("유효하지 않은 user_id로 운동 루틴 추천 요청 - 기본값 설정")
+            user_id = "1"  # 기본값 설정
         
         # 필수 데이터 검증
         required_inbody = ["gender", "age", "height", "weight"]
@@ -572,12 +684,23 @@ async def recommend_workout(data: dict):
                     detail=f"필수 운동 선호도 정보가 누락되었습니다: {field}"
                 )
 
+        # 🔥 저장 전 DB 연결 상태 확인
+        try:
+            db_test = analyzer.db.collection.count_documents({})
+            logger.info(f"✅ DB 연결 확인: 전체 루틴 수 {db_test}")
+        except Exception as db_error:
+            logger.error(f"❌ DB 연결 실패: {str(db_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail="데이터베이스 연결에 실패했습니다. 잠시 후 다시 시도해주세요."
+            )
+
         # 사용자 벡터DB에 데이터 저장 (user_id 기반)
         if user_id and user_id not in ["None", "null"]:
             try:
                 analyzer.user_vector_store.add_user_inbody_data(user_id, inbody_data)
                 analyzer.user_vector_store.add_user_preferences(user_id, preferences)
-                logger.info(f"사용자 {user_id}의 데이터를 벡터DB에 저장 완료")
+                logger.info(f"✅ 사용자 {user_id}의 데이터를 벡터DB에 저장 완료")
             except Exception as e:
                 logger.error(f"사용자 데이터 벡터DB 저장 실패: {str(e)}")
 
@@ -589,11 +712,11 @@ async def recommend_workout(data: dict):
                     user_id, 
                     f"운동 루틴 추천 {preferences.get('goal', '')} 개인화"
                 )
-                logger.info(f"사용자 {user_id}의 개인화 컨텍스트 조회 완료")
+                logger.info(f"✅ 사용자 {user_id}의 개인화 컨텍스트 조회 완료")
             except Exception as e:
                 logger.error(f"사용자 컨텍스트 조회 실패: {str(e)}")
 
-        # 운동 루틴 생성 (사용자별 개인화 컨텍스트 포함)
+        # 🔥 운동 루틴 생성 (사용자별 개인화 컨텍스트 포함)
         routine_result = await analyzer.generate_enhanced_routine_async({
             "inbody": inbody_data,
             "preferences": preferences,
@@ -601,25 +724,55 @@ async def recommend_workout(data: dict):
             "user_context": user_context
         })
 
-        # 결과가 딕셔너리 형태인지 확인 (성공적으로 생성된 경우)
+        # 🔥 결과가 딕셔너리 형태인지 확인 (성공적으로 생성된 경우)
         if isinstance(routine_result, dict) and routine_result.get('success'):
-            logger.info(f"사용자 {user_id}의 개인화된 운동 루틴 생성 및 DB 저장 완료")
-            return {
+            saved_routines = routine_result.get('routines', [])
+            
+            # 🔥 추가 검증: 실제로 저장되었는지 DB에서 재확인
+            if user_id and user_id not in ["None", "null"]:
+                try:
+                    verification_routines = analyzer.db.get_user_routines(user_id)
+                    logger.info(f"🔍 최종 검증: 사용자 {user_id}의 DB 저장 루틴 수: {len(verification_routines)}")
+                    
+                    if len(verification_routines) == 0:
+                        logger.error(f"❌ 심각한 오류: 저장 완료라고 했지만 DB에 루틴이 없음")
+                        raise ValueError("루틴 저장이 완료되지 않았습니다.")
+                    
+                    # 실제 DB 데이터로 응답 구성
+                    saved_routines = verification_routines
+                    
+                except Exception as verification_error:
+                    logger.error(f"최종 검증 실패: {str(verification_error)}")
+                    if not saved_routines:  # saved_routines가 비어있으면 오류 발생
+                        raise ValueError("루틴 저장 검증에 실패했습니다.")
+            
+            logger.info(f"✅ 사용자 {user_id}의 개인화된 운동 루틴 생성 및 DB 저장 완료")
+            
+            # 🔥 성공 응답에 저장 상태 포함
+            response_data = {
                 "success": True,
                 "analysis": routine_result.get('analysis', ''),
-                "routines": routine_result.get('routines', []),
-                "total_days": routine_result.get('total_days', 0),
+                "routines": saved_routines,
+                "total_days": len(saved_routines),
                 "personalization_applied": routine_result.get('personalization_applied', False),
-                "message": f"사용자 {user_id}를 위한 개인화된 {routine_result.get('total_days', 0)}일간의 운동 루틴이 생성되고 저장되었습니다."
+                "message": f"사용자 {user_id}를 위한 개인화된 {len(saved_routines)}일간의 운동 루틴이 생성되고 저장되었습니다.",
+                "save_verification": {
+                    "db_saved_count": len(saved_routines),
+                    "generation_time": routine_result.get('generation_time'),
+                    "save_errors": routine_result.get('save_errors')
+                }
             }
+            
+            return CustomJSONResponse(response_data)
         else:
             # Fallback 텍스트 응답
             logger.info("Fallback 텍스트 운동 루틴 생성")
-            return {
+            return CustomJSONResponse({
                 "success": True,
                 "routine": routine_result,
-                "message": "운동 루틴이 생성되었습니다."
-            }
+                "message": "운동 루틴이 생성되었습니다.",
+                "fallback": True
+            })
         
     except HTTPException:
         raise

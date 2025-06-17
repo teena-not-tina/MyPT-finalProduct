@@ -1,4 +1,4 @@
-# backend/modules/chat_session.py
+# backend/modules/chat_session.py - 루틴 저장 및 UI 개선
 import uuid
 import asyncio
 from datetime import datetime, timezone, timedelta
@@ -6,6 +6,15 @@ from typing import Dict, List, Optional, Any
 from enum import Enum
 import json
 import logging
+import pytz  # ✅ 추가
+import re
+
+# ✅ 한국 시간대 설정
+KST = pytz.timezone('Asia/Seoul')
+
+def get_korea_time():
+    """한국 시간 반환"""
+    return datetime.now(KST)
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +43,10 @@ class ChatSession:
         self.existing_routines = None  # 기존 루틴 저장
         self.modification_request = None  # 수정 요청 내용
         self.daily_modifications = {}  # 일일 수정사항 저장
-        self.created_at = datetime.now(timezone.utc)
-        self.last_activity = datetime.now(timezone.utc)
+        self.created_at = get_korea_time()  # ✅ 한국 시간 적용
+        self.last_activity = get_korea_time()  # ✅ 한국 시간 적용
         
-        # 초기 봇 메시지는 _handle_initial_state에서 처리
+        self.selected_day_permanent = None  # 영구 수정할 일차 저장
     
     def add_message(self, sender: str, text: str, message_type: str = 'text', **kwargs) -> Dict:
         """메시지 추가"""
@@ -46,18 +55,18 @@ class ChatSession:
             'sender': sender,
             'text': text,
             'type': message_type,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp': get_korea_time().isoformat(),  # ✅ 한국 시간 적용
             **kwargs
         }
         self.messages.append(message)
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = get_korea_time()  # ✅ 한국 시간 적용
         return message
     
     def update_state(self, new_state: SessionState):
         """세션 상태 업데이트"""
         logger.info(f"Session {self.session_id}: {self.state.value} -> {new_state.value}")
         self.state = new_state
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = get_korea_time()  # ✅ 한국 시간 적용
     
     def set_inbody_data(self, data: Dict):
         """인바디 데이터 설정"""
@@ -73,7 +82,7 @@ class ChatSession:
     
     def set_daily_modification(self, modification: Dict):
         """일일 수정사항 설정 (당일만 적용)"""
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = get_korea_time().date().isoformat()  # ✅ 한국 시간 기준
         self.daily_modifications[today] = modification
         
         # 이전 날짜의 수정사항 정리
@@ -83,15 +92,13 @@ class ChatSession:
     
     def get_current_routines(self):
         """현재 적용된 루틴 반환 (일일 수정사항 반영)"""
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = get_korea_time().date().isoformat()  # ✅ 한국 시간 기준
         base_routines = self.existing_routines or []
         
         # 오늘의 수정사항이 있으면 적용
         if today in self.daily_modifications:
             modified_routines = base_routines.copy()
             modification = self.daily_modifications[today]
-            # 여기서 수정사항을 적용하는 로직 구현
-            # (예: 특정 운동 교체, 강도 조절 등)
             return self._apply_daily_modifications(modified_routines, modification)
         
         return base_routines
@@ -166,14 +173,20 @@ class ChatSessionManager:
             {'key': 'available_time', 'text': '운동 가능 시간을 선택해주세요.', 'type': 'buttons', 'options': ['주 1-2회, 30분', '주 2-3회, 45분', '주 3-4회, 1시간', '주 4-5회, 1시간+', '매일, 30분', '매일, 1시간+'], 'required': True}
         ]
         
-        # 루틴 수정 관련 옵션들
+        # 루틴 수정 옵션들
         self.ROUTINE_MODIFICATION_OPTIONS = [
             '새로운 루틴으로 완전히 교체',
-            '기존 루틴 일부 수정 (오늘만)',
-            '운동 강도 조절 (오늘만)',
-            '운동 시간 조절 (오늘만)',
-            '특정 운동 교체 (오늘만)',
+            '오늘 하루만 수정하기',  
+            '특정 일차를 영구적으로 수정하기', 
             '기존 루틴 유지하고 상담만'
+        ]
+        
+        # 2단계: 일일 수정 세부 옵션들
+        self.DAILY_MODIFICATION_OPTIONS = [
+            '특정 운동 교체하기',
+            '운동 강도 조절하기',
+            '운동 시간 조절하기',
+            '전체 루틴 일부 수정하기'
         ]
         
     MAX_SESSIONS = 1000
@@ -190,7 +203,6 @@ class ChatSessionManager:
         self.sessions[session.session_id] = session
         logger.info(f"새 세션 생성: {session.session_id} (사용자: {user_id})")
         
-        # 초기 메시지 생성 로직 완전 제거!
         return session
     
     async def create_session_with_welcome_message(self, user_id: str, analyzer) -> Dict:
@@ -274,16 +286,13 @@ class ChatSessionManager:
             raise
     
     async def process_message(self, session_id: str, message: str, analyzer, user_id: str = None) -> Dict:
-        """메시지 처리 메인 로직 - 초기 상태는 더 이상 여기서 처리하지 않음"""
+        """메시지 처리 메인 로직"""
         session = self.get_or_create_session(session_id, user_id)
         
         # 사용자 메시지 추가
         session.add_message('user', message)
         
         try:
-            # INITIAL 상태는 이제 create_session_with_welcome_message에서만 처리됨
-            # 여기서는 실제 대화 상태들만 처리
-            
             if session.state == SessionState.ASKING_ROUTINE_MODIFICATION:
                 return await self._handle_routine_modification_choice(session, message, analyzer)
             
@@ -313,14 +322,26 @@ class ChatSessionManager:
                 '죄송합니다. 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
             )
             return self._create_response(session, bot_message)
-        
+
     async def _handle_routine_modification_choice(self, session: ChatSession, message: str, analyzer) -> Dict:
         """루틴 수정 선택 처리"""
         session.modification_request = message
         
         if '새로운 루틴으로 완전히 교체' in message:
-            # 기존 루틴 삭제 후 새로운 루틴 생성
+            # 기존 루틴을 temp_routines에 백업
+            existing_routines = analyzer.db.get_user_routines(session.user_id)
+            if existing_routines:
+                backup_success = analyzer.db.backup_user_routines_to_temp(
+                    session.user_id, 
+                    existing_routines,
+                    backup_type="complete_replacement"
+                )
+                if backup_success:
+                    logger.info(f"사용자 {session.user_id}의 기존 루틴을 temp_routines에 백업 완료")
+            
+            # 기존 루틴 삭제
             analyzer.db.delete_user_routines(session.user_id)
+            
             # 사용자 벡터DB에서도 기존 데이터 삭제
             if hasattr(analyzer, 'user_vector_store') and session.user_id:
                 analyzer.user_vector_store.delete_user_data(session.user_id)
@@ -333,13 +354,44 @@ class ChatSessionManager:
             return self._create_response(session, bot_message, show_buttons=True,
                                        button_options=['예, PDF가 있어요', '아니오, 수동 입력할게요'])
         
-        elif any(keyword in message for keyword in ['일부 수정', '강도 조절', '시간 조절', '운동 교체']) and '오늘만' in message:
+        elif '오늘 하루만 수정하기' in message:
             bot_message = session.add_message(
                 'bot',
-                '오늘 하루만 적용될 수정사항을 말씀해주세요.\n\n예시:\n- "1일차 스쿼트를 런지로 바꿔주세요"\n- "전체적으로 강도를 20% 낮춰주세요"\n- "운동 시간을 30분으로 줄여주세요"\n\n내일부터는 다시 원래 루틴으로 돌아갑니다.'
+                '오늘 하루만 어떤 방식으로 수정하시겠어요?\n\n선택하신 수정사항은 오늘만 적용되고, 내일부터는 자동으로 원래 루틴으로 돌아갑니다.'
             )
             session.update_state(SessionState.MODIFYING_ROUTINE)
-            return self._create_response(session, bot_message)
+            session.modification_request = "daily_modification"
+            
+            return self._create_response(session, bot_message, show_buttons=True,
+                                       button_options=self.DAILY_MODIFICATION_OPTIONS)
+        
+        elif '특정 일차를 영구적으로 수정하기' in message:
+            existing_routines = session.get_current_routines()
+            if not existing_routines:
+                bot_message = session.add_message(
+                    'bot',
+                    '수정할 기존 루틴을 찾을 수 없습니다.'
+                )
+                return self._create_response(session, bot_message)
+            
+            # 사용가능한 일차 옵션 동적 생성
+            available_days = []
+            max_day = len(existing_routines)
+            for i in range(1, max_day + 1):
+                available_days.append(f'{i}일차 영구 수정')
+            
+            if max_day > 1:
+                available_days.append('여러 일차 영구 수정')
+            
+            bot_message = session.add_message(
+                'bot',
+                f'현재 {max_day}일간의 루틴이 있습니다.\n\n어떤 일차를 영구적으로 수정하시겠어요?\n\n⚠️ 이 수정은 영구적으로 적용되며, 해당 일차 루틴이 완전히 바뀝니다.'
+            )
+            session.update_state(SessionState.MODIFYING_ROUTINE)
+            session.modification_request = "permanent_day_selection"
+            
+            return self._create_response(session, bot_message, show_buttons=True,
+                                       button_options=available_days)
         
         elif '기존 루틴 유지하고 상담만' in message:
             current_routines = session.get_current_routines()
@@ -351,56 +403,166 @@ class ChatSessionManager:
             return self._create_response(session, bot_message, routine_data=current_routines)
         
         else:
-            # 기본 처리
             bot_message = session.add_message(
                 'bot',
                 '죄송합니다. 다시 선택해주세요.'
             )
             return self._create_response(session, bot_message, show_buttons=True,
                                        button_options=self.ROUTINE_MODIFICATION_OPTIONS)
-    
+
     async def _handle_routine_modification(self, session: ChatSession, message: str, analyzer) -> Dict:
-        """루틴 수정 처리 (오늘만 적용)"""
+        """루틴 수정 처리"""
         try:
-            # Function calling으로 수정 요청 분석
+            if session.modification_request == "daily_modification":
+                if '특정 운동 교체하기' in message:
+                    bot_message = session.add_message(
+                        'bot',
+                        '어떤 운동을 어떤 운동으로 교체하고 싶으신가요?\n\n예시: "1일차 벤치프레스를 스쿼트로 바꿔주세요"'
+                    )
+                    return self._create_response(session, bot_message, show_input=True,
+                                               input_placeholder="예: 1일차 벤치프레스를 스쿼트로 바꿔주세요")
+                
+                elif '운동 강도 조절하기' in message:
+                    bot_message = session.add_message(
+                        'bot',
+                        '운동 강도를 어떻게 조절하고 싶으신가요?\n\n예시: "전체적으로 20% 낮춰주세요" 또는 "중량을 10% 늘려주세요"'
+                    )
+                    return self._create_response(session, bot_message, show_input=True,
+                                               input_placeholder="예: 전체적으로 20% 낮춰주세요")
+                
+                elif '운동 시간 조절하기' in message:
+                    bot_message = session.add_message(
+                        'bot',
+                        '운동 시간을 어떻게 조절하고 싶으신가요?\n\n예시: "30분으로 줄여주세요" 또는 "1시간으로 늘려주세요"'
+                    )
+                    return self._create_response(session, bot_message, show_input=True,
+                                               input_placeholder="예: 30분으로 줄여주세요")
+                
+                elif '전체 루틴 일부 수정하기' in message:
+                    bot_message = session.add_message(
+                        'bot',
+                        '루틴의 어떤 부분을 수정하고 싶으신가요?\n\n구체적으로 말씀해주세요.'
+                    )
+                    return self._create_response(session, bot_message, show_input=True,
+                                               input_placeholder="수정하고 싶은 내용을 구체적으로 입력해주세요")
+                
+                else:
+                    return await self._process_daily_modification(session, message, analyzer)
+            
+            elif session.modification_request == "permanent_day_selection":
+                return await self._handle_permanent_day_selection(session, message, analyzer)
+            
+            elif hasattr(session, 'selected_day_permanent') and session.selected_day_permanent:
+                return await self._process_permanent_day_modification(session, message, analyzer)
+            
+            else:
+                bot_message = session.add_message(
+                    'bot',
+                    '수정 방식을 다시 선택해주세요.'
+                )
+                session.update_state(SessionState.ASKING_ROUTINE_MODIFICATION)
+                return self._create_response(session, bot_message, show_buttons=True,
+                                           button_options=self.ROUTINE_MODIFICATION_OPTIONS)
+                
+        except Exception as e:
+            logger.error(f"루틴 수정 처리 중 오류: {str(e)}")
+            bot_message = session.add_message(
+                'bot',
+                '루틴 수정 중 오류가 발생했습니다. 다시 시도해주세요.'
+            )
+            return self._create_response(session, bot_message)
+
+    async def _process_daily_modification(self, session: ChatSession, message: str, analyzer) -> Dict:
+        """실제 일일 수정 처리"""
+        try:
+            existing_routines = analyzer.db.get_user_routines(session.user_id)
+            if not existing_routines:
+                bot_message = session.add_message(
+                    'bot',
+                    '수정할 기존 루틴을 찾을 수 없습니다.'
+                )
+                return self._create_response(session, bot_message)
+            
+            # 기존 루틴을 임시 저장
+            backup_success = analyzer.db.backup_user_routines_to_temp(
+                session.user_id, 
+                existing_routines,
+                backup_type="daily_modification"
+            )
+            if not backup_success:
+                bot_message = session.add_message(
+                    'bot',
+                    '루틴 백업 중 오류가 발생했습니다. 다시 시도해주세요.'
+                )
+                return self._create_response(session, bot_message)
+            
+            # Function calling으로 수정된 루틴 생성
             response = await analyzer.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{
                     "role": "system",
-                    "content": "사용자의 운동 루틴 수정 요청을 분석하고 오늘 하루만 적용될 수정사항을 생성하세요."
+                    "content": "사용자의 요청에 따라 운동 루틴을 수정하세요. 기존 루틴의 구조를 유지하면서 요청된 부분만 수정해야 합니다."
                 }, {
                     "role": "user",
-                    "content": f"현재 루틴: {session.existing_routines}\n\n수정 요청: {message}"
+                    "content": f"기존 루틴: {existing_routines}\n\n수정 요청: {message}"
                 }],
                 tools=[{
                     "type": "function",
                     "function": {
-                        "name": "create_daily_modification",
-                        "description": "오늘 하루만 적용될 운동 루틴 수정사항 생성",
+                        "name": "modify_routine",
+                        "description": "운동 루틴을 수정합니다",
                         "parameters": {
                             "type": "object",
                             "properties": {
-                                "modification_type": {
-                                    "type": "string",
-                                    "enum": ["exercise_replacement", "intensity_adjustment", "time_adjustment", "general_modification"],
-                                    "description": "수정 유형"
-                                },
-                                "details": {"type": "string", "description": "수정 내용 설명"},
-                                "parameters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "factor": {"type": "number", "description": "강도 조절 비율 (예: 0.8 = 20% 감소)"},
-                                        "old_exercise": {"type": "string", "description": "교체할 기존 운동"},
-                                        "new_exercise": {"type": "string", "description": "새로운 운동"},
-                                        "time_limit": {"type": "integer", "description": "시간 제한 (분)"}
+                                "modified_routines": {
+                                    "type": "array",
+                                    "description": "수정된 운동 루틴 배열",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "user_id": {"type": "integer"},
+                                            "day": {"type": "integer"},
+                                            "title": {"type": "string"},
+                                            "exercises": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {"type": "integer"},
+                                                        "name": {"type": "string"},
+                                                        "sets": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "id": {"type": "integer"},
+                                                                    "reps": {"type": "integer"},
+                                                                    "weight": {"type": "integer"},
+                                                                    "time": {"type": "string"},
+                                                                    "completed": {"type": "boolean"}
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 },
-                                "success": {"type": "boolean", "description": "수정 가능 여부"}
-                            }
+                                "modification_summary": {
+                                    "type": "string",
+                                    "description": "수정 내용 요약"
+                                },
+                                "success": {
+                                    "type": "boolean",
+                                    "description": "수정 성공 여부"
+                                }
+                            },
+                            "required": ["modified_routines", "modification_summary", "success"]
                         }
                     }
                 }],
-                tool_choice={"type": "function", "function": {"name": "create_daily_modification"}}
+                tool_choice={"type": "function", "function": {"name": "modify_routine"}}
             )
             
             if response.choices[0].message.tool_calls:
@@ -408,37 +570,409 @@ class ChatSessionManager:
                 modification_result = json.loads(function_call.arguments)
                 
                 if modification_result.get('success', False):
-                    # 오늘의 수정사항 저장
-                    daily_modification = {
-                        'type': modification_result.get('modification_type'),
-                        'details': modification_result.get('details'),
-                        'parameters': modification_result.get('parameters', {}),
-                        'applied_date': datetime.now(timezone.utc).date().isoformat()
-                    }
+                    modified_routines = modification_result.get('modified_routines', [])
+                    modification_summary = modification_result.get('modification_summary', '')
                     
-                    session.set_daily_modification(daily_modification)
+                    # 기존 루틴을 삭제하고 수정된 루틴을 저장
+                    analyzer.db.delete_user_routines(session.user_id)
                     
-                    # 수정된 루틴 가져오기
-                    modified_routines = session.get_current_routines()
+                    # 수정된 루틴 저장
+                    saved_routines = []
+                    for routine in modified_routines:
+                        routine['user_id'] = int(session.user_id)
+                        saved_id = analyzer.db.save_routine(routine)
+                        if saved_id:
+                            routine['_id'] = str(saved_id)
+                            saved_routines.append(routine)
+                    
+                    # 자동 복원 스케줄링 (24시간 후)
+                    analyzer.db.schedule_routine_restoration(session.user_id, 24)
                     
                     bot_message = session.add_message(
                         'bot',
-                        f"오늘 하루만 적용될 루틴 수정이 완료되었습니다! ✅\n\n📝 수정 내용: {modification_result.get('details', '')}\n\n내일부터는 다시 원래 루틴으로 돌아갑니다.\n\n수정된 오늘의 루틴을 확인해보세요."
+                        f"오늘 하루만 적용될 루틴 수정이 완료되었습니다! ✅\n\n📝 수정 내용: {modification_summary}\n\n⏰ 내일 자정에 자동으로 원래 루틴으로 돌아갑니다.\n\n수정된 오늘의 루틴을 확인해보세요."
                     )
                     session.update_state(SessionState.CHATTING)
-                    return self._create_response(session, bot_message, routine_data=modified_routines)
+                    return self._create_response(session, bot_message, routine_data=saved_routines)
                 else:
+                    analyzer.db.restore_user_routines_from_temp(session.user_id, backup_type="daily_modification")
                     bot_message = session.add_message(
                         'bot',
-                        '요청하신 수정이 어려울 수 있습니다. 다른 방식으로 수정해보시겠어요?\n\n구체적인 요청을 다시 말씀해주세요.'
+                        '요청하신 수정이 어려울 수 있습니다. 다른 방식으로 수정해보시겠어요?'
                     )
                     return self._create_response(session, bot_message)
             
         except Exception as e:
-            logger.error(f"루틴 수정 중 오류: {str(e)}")
+            logger.error(f"일일 수정 처리 중 오류: {str(e)}")
+            try:
+                analyzer.db.restore_user_routines_from_temp(session.user_id, backup_type="daily_modification")
+            except:
+                pass
+            
+            bot_message = session.add_message(
+                'bot',
+                '루틴 수정 중 오류가 발생했습니다. 원래 루틴을 유지합니다.'
+            )
+            return self._create_response(session, bot_message)
+
+    async def _handle_permanent_day_selection(self, session: ChatSession, message: str, analyzer) -> Dict:
+        """영구적인 특정 일차 선택 처리"""
+        try:
+            day_pattern = r'(\d+)일차 영구 수정'
+            match = re.search(day_pattern, message)
+            
+            if match:
+                selected_day = int(match.group(1))
+                session.selected_day_permanent = selected_day
+                
+                existing_routines = session.get_current_routines()
+                target_routine = next((r for r in existing_routines if r['day'] == selected_day), None)
+                
+                if not target_routine:
+                    bot_message = session.add_message(
+                        'bot',
+                        f'{selected_day}일차 루틴을 찾을 수 없습니다.'
+                    )
+                    return self._create_response(session, bot_message)
+                
+                current_exercises = []
+                for exercise in target_routine.get('exercises', []):
+                    current_exercises.append(f"- {exercise['name']}")
+                
+                current_routine_text = '\n'.join(current_exercises)
+                
+                bot_message = session.add_message(
+                    'bot',
+                    f'📋 현재 {selected_day}일차 루틴:\n{current_routine_text}\n\n⚠️ 영구적으로 어떻게 수정하고 싶으신가요?\n\n예시:\n- "1번째 운동을 ○○으로 바꿔주세요"\n- "전체적으로 강도를 20% 낮춰주세요"\n- "○○ 운동을 추가해주세요"\n\n❗ 이 수정은 영구적으로 적용됩니다.'
+                )
+                
+                session.modification_request = f"permanent_day_{selected_day}_modification"
+                
+                return self._create_response(session, bot_message, show_input=True,
+                                           input_placeholder=f"{selected_day}일차 영구 수정 요청을 구체적으로 입력해주세요")
+            
+            elif '여러 일차 영구 수정' in message:
+                existing_routines = session.get_current_routines()
+                routine_summary = []
+                for routine in existing_routines:
+                    exercise_names = [ex['name'] for ex in routine.get('exercises', [])]
+                    routine_summary.append(f"{routine['day']}일차: {', '.join(exercise_names[:2])}...")
+                
+                summary_text = '\n'.join(routine_summary)
+                
+                bot_message = session.add_message(
+                    'bot',
+                    f'📋 현재 루틴 요약:\n{summary_text}\n\n⚠️ 여러 일차를 영구적으로 어떻게 수정하고 싶으신가요?\n\n예시:\n- "1일차와 3일차에서 ○○ 운동을 ××로 바꿔주세요"\n- "모든 일차의 강도를 15% 높여주세요"\n\n❗ 이 수정은 영구적으로 적용됩니다.'
+                )
+                
+                session.modification_request = "permanent_multiple_days_modification"
+                session.selected_day_permanent = "multiple"
+                
+                return self._create_response(session, bot_message, show_input=True,
+                                           input_placeholder="여러 일차 영구 수정 요청을 구체적으로 입력해주세요")
+            else:
+                bot_message = session.add_message(
+                    'bot',
+                    '선택을 인식할 수 없습니다. 다시 선택해주세요.'
+                )
+                return self._create_response(session, bot_message)
+                
+        except Exception as e:
+            logger.error(f"영구 일차 선택 처리 중 오류: {str(e)}")
+            bot_message = session.add_message(
+                'bot',
+                '일차 선택 처리 중 오류가 발생했습니다.'
+            )
+            return self._create_response(session, bot_message)
+
+    async def _process_permanent_day_modification(self, session: ChatSession, message: str, analyzer) -> Dict:
+        """영구적인 특정 일차 수정 처리"""
+        try:
+            selected_day = session.selected_day_permanent
+            existing_routines = analyzer.db.get_user_routines(session.user_id)
+            
+            if not existing_routines:
+                bot_message = session.add_message(
+                    'bot',
+                    '수정할 기존 루틴을 찾을 수 없습니다.'
+                )
+                return self._create_response(session, bot_message)
+            
+            if selected_day == "multiple":
+                return await self._process_permanent_multiple_days_modification(session, message, analyzer, existing_routines)
+            else:
+                return await self._process_permanent_single_day_modification(session, message, analyzer, existing_routines, selected_day)
+                
+        except Exception as e:
+            logger.error(f"영구 일차 수정 처리 중 오류: {str(e)}")
             bot_message = session.add_message(
                 'bot',
                 '루틴 수정 중 오류가 발생했습니다. 다시 시도해주세요.'
+            )
+            return self._create_response(session, bot_message)
+
+    async def _process_permanent_single_day_modification(self, session: ChatSession, message: str, analyzer, existing_routines: List[Dict], selected_day: int) -> Dict:
+        """단일 일차 영구 수정 처리"""
+        try:
+            target_routine = next((r for r in existing_routines if r['day'] == selected_day), None)
+            
+            if not target_routine:
+                bot_message = session.add_message(
+                    'bot',
+                    f'{selected_day}일차 루틴을 찾을 수 없습니다.'
+                )
+                return self._create_response(session, bot_message)
+            
+            # Function calling으로 특정 일차만 수정
+            response = await analyzer.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{
+                    "role": "system",
+                    "content": f"사용자가 {selected_day}일차 루틴만 영구적으로 수정하고 싶어합니다. 기존 루틴의 구조를 유지하면서 요청된 부분만 수정해주세요."
+                }, {
+                    "role": "user",
+                    "content": f"기존 {selected_day}일차 루틴: {target_routine}\n\n영구 수정 요청: {message}"
+                }],
+                tools=[{
+                    "type": "function",
+                    "function": {
+                        "name": "modify_single_day_routine_permanent",
+                        "description": f"{selected_day}일차 운동 루틴을 영구적으로 수정합니다",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "modified_routine": {
+                                    "type": "object",
+                                    "description": f"영구 수정된 {selected_day}일차 운동 루틴",
+                                    "properties": {
+                                        "user_id": {"type": "integer"},
+                                        "day": {"type": "integer"},
+                                        "title": {"type": "string"},
+                                        "exercises": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {"type": "integer"},
+                                                    "name": {"type": "string"},
+                                                    "sets": {
+                                                        "type": "array",
+                                                        "items": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "id": {"type": "integer"},
+                                                                "reps": {"type": "integer"},
+                                                                "weight": {"type": "integer"},
+                                                                "time": {"type": "string"},
+                                                                "completed": {"type": "boolean"}
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "modification_summary": {
+                                    "type": "string",
+                                    "description": "수정 내용 요약"
+                                },
+                                "success": {
+                                    "type": "boolean",
+                                    "description": "수정 성공 여부"
+                                }
+                            },
+                            "required": ["modified_routine", "modification_summary", "success"]
+                        }
+                    }
+                }],
+                tool_choice={"type": "function", "function": {"name": "modify_single_day_routine_permanent"}}
+            )
+            
+            if response.choices[0].message.tool_calls:
+                function_call = response.choices[0].message.tool_calls[0].function
+                modification_result = json.loads(function_call.arguments)
+                
+                if modification_result.get('success', False):
+                    modified_routine = modification_result.get('modified_routine', {})
+                    modification_summary = modification_result.get('modification_summary', '')
+                    
+                    modified_routine['user_id'] = int(session.user_id)
+                    modified_routine['day'] = selected_day
+                    
+                    # 기존 해당 일차 루틴 삭제
+                    analyzer.db.delete_specific_day_routine(session.user_id, selected_day)
+                    
+                    # 수정된 루틴 저장
+                    saved_id = analyzer.db.save_routine(modified_routine)
+                    
+                    if saved_id:
+                        modified_routine['_id'] = str(saved_id)
+                        
+                        # 업데이트된 전체 루틴 조회
+                        updated_routines = analyzer.db.get_user_routines(session.user_id)
+                        
+                        bot_message = session.add_message(
+                            'bot',
+                            f"{selected_day}일차 루틴이 영구적으로 수정되었습니다! ✅\n\n📝 수정 내용: {modification_summary}\n\n✨ 나머지 일차는 기존대로 유지됩니다.\n\n❗ 이 수정은 영구적으로 적용되었습니다.\n\n업데이트된 전체 루틴을 확인해보세요."
+                        )
+                        session.update_state(SessionState.CHATTING)
+                        
+                        if hasattr(session, 'selected_day_permanent'):
+                            delattr(session, 'selected_day_permanent')
+                        
+                        return self._create_response(session, bot_message, routine_data=updated_routines)
+                    else:
+                        raise ValueError("수정된 루틴 저장에 실패했습니다.")
+                else:
+                    bot_message = session.add_message(
+                        'bot',
+                        '요청하신 수정이 어려울 수 있습니다. 다른 방식으로 수정해보시겠어요?'
+                    )
+                    return self._create_response(session, bot_message)
+            else:
+                raise ValueError("Function calling 응답을 받지 못했습니다.")
+                
+        except Exception as e:
+            logger.error(f"영구 단일 일차 수정 처리 중 오류: {str(e)}")
+            bot_message = session.add_message(
+                'bot',
+                f'{selected_day}일차 루틴 영구 수정 중 오류가 발생했습니다.'
+            )
+            return self._create_response(session, bot_message)
+
+    async def _process_permanent_multiple_days_modification(self, session: ChatSession, message: str, analyzer, existing_routines: List[Dict]) -> Dict:
+        """여러 일차 영구 수정 처리"""
+        try:
+            # Function calling으로 여러 일차 영구 수정
+            response = await analyzer.client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{
+                    "role": "system",
+                    "content": "사용자가 여러 일차 루틴을 영구적으로 수정하고 싶어합니다. 요청된 일차들만 수정하고 나머지는 유지해주세요."
+                }, {
+                    "role": "user",
+                    "content": f"기존 전체 루틴: {existing_routines}\n\n영구 수정 요청: {message}"
+                }],
+                tools=[{
+                    "type": "function",
+                    "function": {
+                        "name": "modify_multiple_days_routine_permanent",
+                        "description": "여러 일차 운동 루틴을 영구적으로 수정합니다",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "modified_days": {
+                                    "type": "array",
+                                    "description": "영구 수정된 일차들",
+                                    "items": {
+                                        "type": "integer"
+                                    }
+                                },
+                                "modified_routines": {
+                                    "type": "array",
+                                    "description": "영구 수정된 루틴들",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "user_id": {"type": "integer"},
+                                            "day": {"type": "integer"},
+                                            "title": {"type": "string"},
+                                            "exercises": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {"type": "integer"},
+                                                        "name": {"type": "string"},
+                                                        "sets": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "id": {"type": "integer"},
+                                                                    "reps": {"type": "integer"},
+                                                                    "weight": {"type": "integer"},
+                                                                    "time": {"type": "string"},
+                                                                    "completed": {"type": "boolean"}
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "modification_summary": {
+                                    "type": "string",
+                                    "description": "수정 내용 요약"
+                                },
+                                "success": {
+                                    "type": "boolean",
+                                    "description": "수정 성공 여부"
+                                }
+                            },
+                            "required": ["modified_days", "modified_routines", "modification_summary", "success"]
+                        }
+                    }
+                }],
+                tool_choice={"type": "function", "function": {"name": "modify_multiple_days_routine_permanent"}}
+            )
+            
+            if response.choices[0].message.tool_calls:
+                function_call = response.choices[0].message.tool_calls[0].function
+                modification_result = json.loads(function_call.arguments)
+                
+                if modification_result.get('success', False):
+                    modified_days = modification_result.get('modified_days', [])
+                    modified_routines = modification_result.get('modified_routines', [])
+                    modification_summary = modification_result.get('modification_summary', '')
+                    
+                    # 수정된 일차들만 삭제하고 새로운 루틴으로 교체
+                    analyzer.db.delete_multiple_days_routines(session.user_id, modified_days)
+                    
+                    # 수정된 루틴들 저장
+                    saved_routines = []
+                    for routine in modified_routines:
+                        routine['user_id'] = int(session.user_id)
+                        saved_id = analyzer.db.save_routine(routine)
+                        if saved_id:
+                            routine['_id'] = str(saved_id)
+                            saved_routines.append(routine)
+                    
+                    if saved_routines:
+                        # 업데이트된 전체 루틴 조회
+                        updated_routines = analyzer.db.get_user_routines(session.user_id)
+                        
+                        modified_days_text = ', '.join([f"{day}일차" for day in modified_days])
+                        
+                        bot_message = session.add_message(
+                            'bot',
+                            f"{modified_days_text} 루틴이 영구적으로 수정되었습니다! ✅\n\n📝 수정 내용: {modification_summary}\n\n✨ 나머지 일차는 기존대로 유지됩니다.\n\n❗ 이 수정은 영구적으로 적용되었습니다.\n\n업데이트된 전체 루틴을 확인해보세요."
+                        )
+                        session.update_state(SessionState.CHATTING)
+                        
+                        if hasattr(session, 'selected_day_permanent'):
+                            delattr(session, 'selected_day_permanent')
+                        
+                        return self._create_response(session, bot_message, routine_data=updated_routines)
+                    else:
+                        raise ValueError("수정된 루틴 저장에 실패했습니다.")
+                else:
+                    bot_message = session.add_message(
+                        'bot',
+                        '요청하신 수정이 어려울 수 있습니다. 다른 방식으로 수정해보시겠어요?'
+                    )
+                    return self._create_response(session, bot_message)
+            else:
+                raise ValueError("Function calling 응답을 받지 못했습니다.")
+                
+        except Exception as e:
+            logger.error(f"영구 여러 일차 수정 처리 중 오류: {str(e)}")
+            bot_message = session.add_message(
+                'bot',
+                '여러 일차 루틴 영구 수정 중 오류가 발생했습니다.'
             )
             return self._create_response(session, bot_message)
     
@@ -541,13 +1075,14 @@ class ChatSessionManager:
             else:
                 return self._create_response(session, bot_message, show_input=True)
         else:
-            # 운동 루틴 생성
+            # 🔥 루틴 생성 단계 - 여기서 루틴이 제대로 저장되도록 수정
             session.update_state(SessionState.READY_FOR_RECOMMENDATION)
             return await self._generate_workout_routine(session, analyzer)
     
     async def _generate_workout_routine(self, session: ChatSession, analyzer) -> Dict:
-        """운동 루틴 생성 - 사용자별 개인화된 추천"""
-        bot_message = session.add_message(
+        """🔥 핵심 수정: 운동 루틴 생성 및 저장 - UI 개선"""
+        # 로딩 메시지 추가
+        loading_message = session.add_message(
             'bot',
             '수집된 정보를 바탕으로 맞춤 운동 루틴을 생성하고 있습니다... ⚡'
         )
@@ -578,32 +1113,43 @@ class ChatSessionManager:
                 'inbody': final_inbody_data,
                 'preferences': session.workout_preferences,
                 'user_id': session.user_id,
-                'user_context': user_context  # 사용자별 컨텍스트
+                'user_context': user_context
             }
             
+            # 🔥 핵심 수정: 운동 루틴 생성 및 저장 처리
             routine_result = await analyzer.generate_enhanced_routine_async(user_data)
             
             if isinstance(routine_result, dict) and routine_result.get('success'):
-                # 분석 결과 표시
-                analysis_message = session.add_message('bot', routine_result.get('analysis', ''))
+                # 🔥 분석 결과 메시지 (텍스트로 표시)
+                analysis_message = session.add_message(
+                    'bot', 
+                    routine_result.get('analysis', '분석이 완료되었습니다!')
+                )
                 
-                # 운동 루틴 표시
+                # 🔥 운동 루틴 데이터 저장 및 UI 표시
                 session.routine_data = routine_result.get('routines', [])
-                session.set_existing_routines(session.routine_data)  # 기존 루틴으로 설정
+                session.set_existing_routines(session.routine_data)
                 
+                # 🔥 루틴 메시지를 'routine' 타입으로 생성하여 UI에서 특별히 렌더링
                 routine_message = session.add_message(
                     'bot', 
-                    '📋 맞춤 운동 루틴:', 
+                    f'📋 맞춤 운동 루틴 ({len(session.routine_data)}일차)이 생성되었습니다!', 
                     'routine'
                 )
                 
+                # 🔥 대화 상태로 전환하고 추가 안내 메시지
                 session.update_state(SessionState.CHATTING)
                 final_message = session.add_message(
                     'bot',
-                    '운동 루틴에 대해 궁금한 점이나 조정이 필요한 부분이 있으면 언제든 말씀해주세요! 💪'
+                    '운동 루틴에 대해 궁금한 점이나 조정이 필요한 부분이 있으면 언제든 말씀해주세요! 💪\n\n예시:\n- "1일차 운동을 좀 더 쉽게 바꿔주세요"\n- "전체적으로 강도를 높여주세요"\n- "스쿼트 대신 다른 운동으로 바꿔주세요"'
                 )
                 
-                return self._create_response(session, final_message, routine_data=session.routine_data)
+                # 🔥 중요: routine_data를 응답에 포함하여 프론트엔드에서 렌더링
+                return self._create_response(
+                    session, 
+                    final_message, 
+                    routine_data=session.routine_data
+                )
             else:
                 # Fallback 텍스트 응답
                 bot_message = session.add_message('bot', routine_result)
@@ -736,7 +1282,6 @@ class ChatSessionManager:
         if hasattr(session, 'user_id') and session.user_id:
             try:
                 # analyzer는 process_inbody_pdf 호출부에서 전달받아야 함
-                # 여기서는 임시로 처리
                 pass
             except Exception as e:
                 logger.error(f"PDF 인바디 데이터 벡터DB 저장 실패: {str(e)}")
@@ -814,7 +1359,7 @@ class ChatSessionManager:
     
     def cleanup_old_sessions(self, max_age_hours: int = 24):
         """오래된 세션 정리"""
-        current_time = datetime.now(timezone.utc)
+        current_time = get_korea_time()  # ✅ 한국 시간 적용
         
         to_delete = []
         for session_id, session in self.sessions.items():
@@ -825,7 +1370,7 @@ class ChatSessionManager:
             self.delete_session(session_id)
         
         if to_delete:
-            logger.info(f"{len(to_delete)}개의 오래된 세션을 정리했습니다.")
+            logger.info(f"{len(to_delete)}개의 오래된 세션을 정리했습니다. (한국 시간: {get_korea_time()})")
 
 # 전역 세션 매니저 인스턴스
 session_manager = ChatSessionManager()

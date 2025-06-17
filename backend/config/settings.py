@@ -13,6 +13,8 @@ GPT_MODEL = "gpt-3.5-turbo"  # 또는 "gpt-4", "gpt-3.5-turbo"
 GPT_TEMPERATURE = 0.5
 MAX_TOKENS = 1500
 
+
+
 # test.routines.json 예시를 프롬프트에 포함
 TEST_ROUTINE_PATH = os.path.join(os.path.dirname(__file__), 'test.routines.json')
 try:
