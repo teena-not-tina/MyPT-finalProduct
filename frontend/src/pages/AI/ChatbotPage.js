@@ -14,25 +14,6 @@ const getUserId = () => {
   return userId;
 };
 
-// Header 컴포넌트
-const Header = () => (
-  <header className="bg-white shadow-sm border-b">
-    <div className="max-w-6xl mx-auto px-4 py-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="text-2xl">💪</div>
-          <h1 className="text-xl font-bold text-gray-800">AI 피트니스 코치</h1>
-        </div>
-        <nav className="flex items-center space-x-4">
-          <button className="text-gray-600 hover:text-gray-800">홈</button>
-          <button className="text-gray-600 hover:text-gray-800">내 루틴</button>
-          <button className="text-gray-600 hover:text-gray-800">설정</button>
-        </nav>
-      </div>
-    </div>
-  </header>
-);
-
 // API 함수들
 const API_URL = "http://192.168.0.22:8002";
 
@@ -611,8 +592,6 @@ const ChatbotPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-
       <div className="max-w-4xl mx-auto p-4">
         <div className="bg-white rounded-lg shadow-lg h-[600px] flex flex-col">
           {/* 채팅 헤더 */}
