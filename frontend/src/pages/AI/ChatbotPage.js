@@ -1,13 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-// 사용자 ID 가져오기 함수 - 정수로 생성 (메모리 저장으로 변경)
 const getUserId = () => {
-  // sessionStorage 대신 메모리 변수 사용
-  if (!window.chatbotUserId) {
-    window.chatbotUserId = (Math.floor(Math.random() * 999000) + 1000).toString();
-    console.log('새로운 user_id 생성:', window.chatbotUserId);
+  let userId = sessionStorage.getItem('user_id');
+
+  if (!userId) {
+    // 정수 형태의 user_id 생성 (1000-999999 범위)
+    userId = (Math.floor(Math.random() * 999000) + 1000).toString();
+    sessionStorage.setItem('user_id', userId);
+    console.log('새로운 user_id 생성:', userId);
   }
-  return window.chatbotUserId;
+
+  return userId;
 };
 
 // API 함수들
