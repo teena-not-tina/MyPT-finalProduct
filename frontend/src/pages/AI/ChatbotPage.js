@@ -1,17 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
-// 사용자 ID 가져오기 함수 - 정수로 생성
+// 사용자 ID 가져오기 함수 - 정수로 생성 (메모리 저장으로 변경)
 const getUserId = () => {
-  let userId = sessionStorage.getItem('user_id');
-
-  if (!userId) {
-    // 정수 형태의 user_id 생성 (1000-999999 범위)
-    userId = (Math.floor(Math.random() * 999000) + 1000).toString();
-    sessionStorage.setItem('user_id', userId);
-    console.log('새로운 user_id 생성:', userId);
+  // sessionStorage 대신 메모리 변수 사용
+  if (!window.chatbotUserId) {
+    window.chatbotUserId = (Math.floor(Math.random() * 999000) + 1000).toString();
+    console.log('새로운 user_id 생성:', window.chatbotUserId);
   }
-
-  return userId;
+  return window.chatbotUserId;
 };
 
 // API 함수들
@@ -126,7 +122,7 @@ const resetSession = async (sessionId, userId) => {
 
 // 버튼 그룹 컴포넌트
 const ButtonGroup = ({ options, onSelect, disabled }) => (
-  <div className="flex flex-wrap gap-2 p-3 bg-gray-50 border-t">
+  <div className="flex flex-wrap gap-2 p-3 bg-gray-50 border-t shrink-0">
     {options.map((option) => (
       <button
         key={option}
@@ -142,7 +138,7 @@ const ButtonGroup = ({ options, onSelect, disabled }) => (
 
 // 파일 업로드 컴포넌트
 const FileUpload = ({ onFileUpload, disabled }) => (
-  <div className="p-4 border-t bg-blue-50">
+  <div className="p-4 border-t bg-blue-50 shrink-0">
     <div className="mb-4">
       <p className="text-sm text-gray-600 mb-2">인바디 PDF 파일을 업로드해주세요:</p>
       <input
@@ -160,33 +156,40 @@ const FileUpload = ({ onFileUpload, disabled }) => (
 const TextInput = ({ onSubmit, placeholder, disabled }) => {
   const [inputValue, setInputValue] = useState('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (inputValue.trim()) {
       onSubmit(inputValue.trim());
       setInputValue('');
     }
   };
 
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
   return (
-    <div className="p-4 border-t bg-yellow-50">
-      <form onSubmit={handleSubmit} className="flex space-x-2">
+    <div className="p-4 border-t bg-yellow-50 shrink-0">
+      <div className="flex space-x-2">
         <input
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={handleKeyPress}
           placeholder={placeholder}
           disabled={disabled}
           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-blue-500 disabled:bg-gray-100"
         />
         <button
-          type="submit"
+          onClick={handleSubmit}
           disabled={disabled || !inputValue.trim()}
           className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
           전송
         </button>
-      </form>
+      </div>
     </div>
   );
 };
@@ -350,6 +353,7 @@ const ChatbotPage = () => {
   const [apiConnected, setApiConnected] = useState(false);
   const [connectionChecking, setConnectionChecking] = useState(true);
   const [routineData, setRoutineData] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(true); // 모달 상태 추가
 
   // UI 상태 (백엔드에서 제어)
   const [showButtons, setShowButtons] = useState(false);
@@ -358,10 +362,38 @@ const ChatbotPage = () => {
   const [showInput, setShowInput] = useState(false);
   const [inputPlaceholder, setInputPlaceholder] = useState('');
 
+  // 모달 열기/닫기 처리
+  const openModal = () => setIsModalOpen(true);
+  const closeModal = () => setIsModalOpen(false);
+
+  // 배경 클릭시 모달 닫기
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) {
+      closeModal();
+    }
+  };
+
+  // ESC 키로 모달 닫기
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    };
+
+    if (isModalOpen) {
+      document.addEventListener('keydown', handleEscKey);
+      document.body.style.overflow = 'hidden'; // 스크롤 방지
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscKey);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isModalOpen]);
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-
-  // 자동 스크롤
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -419,12 +451,12 @@ const ChatbotPage = () => {
       const data = await resetSession(null, userId);
 
       if (data.success) {
-        processResponse(data); // ✅ 추가됨
+        processResponse(data);
       }
     } catch (error) {
       console.error('초기 세션 생성 실패:', error);
     }
-  }, [processResponse]); // ✅ 의존성 추가
+  }, [processResponse]);
 
   // 메시지 전송
   const handleSendMessage = useCallback(async (message = null) => {
@@ -545,18 +577,23 @@ const ChatbotPage = () => {
       const data = await resetSession(sessionId, userId);
 
       if (data.success) {
-        processResponse(data); // ✅ 추가됨
+        processResponse(data);
       }
     } catch (error) {
       console.error('세션 초기화 실패:', error);
     }
-  }, [sessionId, processResponse]); // ✅ 의존성 추가
+  }, [sessionId, processResponse]);
 
-
-  // 일반 메시지 입력 폼 제출
-  const handleFormSubmit = useCallback((e) => {
-    e.preventDefault();
+  // 일반 메시지 입력 처리
+  const handleInputSubmit = useCallback(() => {
     handleSendMessage();
+  }, [handleSendMessage]);
+
+  const handleKeyPress = useCallback((e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
   }, [handleSendMessage]);
 
   // Effects
@@ -591,123 +628,151 @@ const ChatbotPage = () => {
   const isInputDisabled = isLoading || isPdfAnalyzing || !apiConnected || showButtons || showFileUpload || showInput;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto p-4">
-        <div className="bg-white rounded-lg shadow-lg h-[600px] flex flex-col">
-          {/* 채팅 헤더 */}
-          <div className="p-4 border-b bg-blue-500 text-white rounded-t-lg">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">AI 피트니스 코치</h2>
-              <div className="flex items-center space-x-2">
-                {/* 연결 상태 표시 */}
-                <div className="flex items-center space-x-1">
-                  <div className={`w-2 h-2 rounded-full ${connectionStatus.color}`}></div>
-                  <span className="text-xs">{connectionStatus.text}</span>
-                </div>
-                <button
-                  onClick={handleResetConversation}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
-                >
-                  대화 초기화
-                </button>
-              </div>
-            </div>
-            <p className="text-blue-100 text-sm mt-1">
-              {sessionId ? `세션: ${sessionId.substring(0, 8)}...` : '새 세션 시작'}
-            </p>
-          </div>
-
-          {/* 메시지 영역 */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-4">
-            {messages.map((message) => (
-              <MessageItem key={message.id} message={message} routineData={routineData} />
-            ))}
-
-            {/* PDF 분석 중 표시 */}
-            {isPdfAnalyzing && (
-              <div className="flex justify-start">
-                <div className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">
-                  <p>PDF 분석 중... ⏳</p>
-                </div>
-              </div>
-            )}
-
-            {/* 로딩 표시 */}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">
-                  <p>생각하는 중... 💭</p>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* 동적 UI 영역 */}
-          {showButtons && (
-            <ButtonGroup
-              options={buttonOptions}
-              onSelect={handleButtonSelect}
-              disabled={isLoading || isPdfAnalyzing}
-            />
-          )}
-
-          {showFileUpload && (
-            <FileUpload
-              onFileUpload={handlePdfUpload}
-              disabled={isPdfAnalyzing}
-            />
-          )}
-
-          {showInput && (
-            <TextInput
-              onSubmit={handleTextInput}
-              placeholder={inputPlaceholder}
-              disabled={isLoading || isPdfAnalyzing}
-            />
-          )}
-
-          {/* 기본 입력 영역 */}
-          {!showButtons && !showFileUpload && !showInput && (
-            <form onSubmit={handleFormSubmit} className="p-4 border-t">
-              <div className="flex space-x-2">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder={
-                    !apiConnected
-                      ? "백엔드 서버 연결을 기다리는 중..."
-                      : "메시지를 입력하세요..."
-                  }
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                  disabled={isInputDisabled}
-                />
-                <button
-                  type="submit"
-                  disabled={isInputDisabled || !inputMessage.trim()}
-                  className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                >
-                  {!apiConnected ? '연결 대기' : '전송'}
-                </button>
-              </div>
-              {!apiConnected && !connectionChecking && (
-                <p className="text-red-500 text-sm mt-2">
-                  ⚠️ 백엔드 서버에 연결되지 않았습니다. 서버를 시작해주세요.
-                </p>
-              )}
-              {(showButtons || showFileUpload || showInput) && (
-                <p className="text-blue-600 text-sm mt-2">
-                  💡 위의 옵션을 선택하거나 입력을 완료해주세요.
-                </p>
-              )}
-            </form>
-          )}
+    <>
+      {/* 모달을 여는 버튼 */}
+      {!isModalOpen && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <button
+            onClick={openModal}
+            className="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-full shadow-lg transition-colors"
+          >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" stroke="#fff" strokeWidth="2" fill="#1976d2" />
+            </svg>
+          </button>
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* 모달 배경 및 컨테이너 */}
+      {isModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={handleBackdropClick}
+        >
+          {/* 채팅 모달 */}
+          <div className="w-full max-w-4xl h-[80vh] bg-white rounded-lg shadow-xl flex flex-col">
+            {/* 채팅 헤더 - 고정 */}
+            <div className="p-4 border-b bg-blue-500 text-white rounded-t-lg shrink-0">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">AI 피트니스 코치</h2>
+                <div className="flex items-center space-x-2">
+                  {/* 연결 상태 표시 */}
+                  <div className="flex items-center space-x-1">
+                    <div className={`w-2 h-2 rounded-full ${connectionStatus.color}`}></div>
+                    <span className="text-xs">{connectionStatus.text}</span>
+                  </div>
+                  <button
+                    onClick={handleResetConversation}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm transition-colors"
+                  >
+                    대화 초기화
+                  </button>
+                  <button
+                    onClick={closeModal}
+                    className="px-3 py-1 bg-red-500 hover:bg-red-600 rounded text-sm transition-colors"
+                  >
+                    ✕ 닫기
+                  </button>
+                </div>
+              </div>
+              <p className="text-blue-100 text-sm mt-1">
+                {sessionId ? `세션: ${sessionId.substring(0, 8)}...` : '새 세션 시작'}
+              </p>
+            </div>
+
+            {/* 메시지 영역 - 스크롤 가능한 영역 */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.map((message) => (
+                <MessageItem key={message.id} message={message} routineData={routineData} />
+              ))}
+
+              {/* PDF 분석 중 표시 */}
+              {isPdfAnalyzing && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">
+                    <p>PDF 분석 중... ⏳</p>
+                  </div>
+                </div>
+              )}
+
+              {/* 로딩 표시 */}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg">
+                    <p>생각하는 중... 💭</p>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* 동적 UI 영역 - 고정 */}
+            {showButtons && (
+              <ButtonGroup
+                options={buttonOptions}
+                onSelect={handleButtonSelect}
+                disabled={isLoading || isPdfAnalyzing}
+              />
+            )}
+
+            {showFileUpload && (
+              <FileUpload
+                onFileUpload={handlePdfUpload}
+                disabled={isPdfAnalyzing}
+              />
+            )}
+
+            {showInput && (
+              <TextInput
+                onSubmit={handleTextInput}
+                placeholder={inputPlaceholder}
+                disabled={isLoading || isPdfAnalyzing}
+              />
+            )}
+
+            {/* 기본 입력 영역 - 고정 */}
+            {!showButtons && !showFileUpload && !showInput && (
+              <div className="p-4 border-t shrink-0">
+                <div className="flex space-x-2">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder={
+                      !apiConnected
+                        ? "백엔드 서버 연결을 기다리는 중..."
+                        : "메시지를 입력하세요..."
+                    }
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    disabled={isInputDisabled}
+                  />
+                  <button
+                    onClick={handleInputSubmit}
+                    disabled={isInputDisabled || !inputMessage.trim()}
+                    className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {!apiConnected ? '연결 대기' : '전송'}
+                  </button>
+                </div>
+                {!apiConnected && !connectionChecking && (
+                  <p className="text-red-500 text-sm mt-2">
+                    ⚠️ 백엔드 서버에 연결되지 않았습니다. 서버를 시작해주세요.
+                  </p>
+                )}
+                {(showButtons || showFileUpload || showInput) && (
+                  <p className="text-blue-600 text-sm mt-2">
+                    💡 위의 옵션을 선택하거나 입력을 완료해주세요.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

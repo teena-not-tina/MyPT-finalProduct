@@ -7,11 +7,11 @@ import ChatbotPage from '../AI/ChatbotPage';
 const RoutineOverviewPage = () => {
   const navigate = useNavigate();
   const [showChatbot, setShowChatbot] = useState(false);
-  
+
   const [routines, setRoutines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // const userId = 3; // Replace with actual user context
 
   const getUserId = () => sessionStorage.getItem('user_id');
@@ -25,13 +25,13 @@ const RoutineOverviewPage = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // TODO: Uncomment when workoutService is available
       const data = await workoutService.getAllRoutines(userId);
-      
+
       // For testing - using actual MongoDB structure
-    
-      
+
+
       setRoutines(data);
       setLoading(false);
     } catch (err) {
@@ -84,7 +84,7 @@ const RoutineOverviewPage = () => {
             </div>
             <h3 className="text-lg font-medium text-red-800 mb-2">아직 등록된 운동 루틴이 없습니다.</h3>
             <p className="text-red-600 mb-4">{error}</p>
-            <button 
+            <button
               onClick={fetchRoutines}
               className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200"
             >
@@ -124,7 +124,7 @@ const RoutineOverviewPage = () => {
                       </span>
                       <h3 className="text-lg font-semibold text-gray-900">{routine.title}</h3>
                     </div>
-                    
+
                     <div className="flex flex-wrap gap-2 mb-3">
                       {routine.exercises && routine.exercises.slice(0, 3).map((exercise, idx) => (
                         <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
@@ -137,7 +137,7 @@ const RoutineOverviewPage = () => {
                         </span>
                       )}
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
                       <span className="flex items-center">
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,8 +153,8 @@ const RoutineOverviewPage = () => {
                       </span>
                     </div>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={() => handleViewRoutine(routine.day)}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors duration-200 flex items-center space-x-2 w-full sm:w-auto justify-center"
                   >
@@ -187,37 +187,20 @@ const RoutineOverviewPage = () => {
           aria-label="AI 트레이너 열기"
         >
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" stroke="#fff" strokeWidth="2" fill="#1976d2"/>
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10z" stroke="#fff" strokeWidth="2" fill="#1976d2" />
           </svg>
         </button>
       )}
 
       {showChatbot && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
-          onClick={() => setShowChatbot(false)}
+          onClick={e => e.stopPropagation()}
         >
-          <div
-            className="
-              bg-white rounded-xl shadow-lg
-              w-full max-w-sm sm:max-w-md
-              h-[90vh] max-h-[90vh]
-              flex flex-col relative overflow-hidden
-            "
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              className="close-chatbot-btn absolute top-2 right-2 z-10 text-2xl text-gray-400 hover:text-gray-700"
-              onClick={() => setShowChatbot(false)}
-              aria-label="챗봇 닫기"
-            >
-              ×
-            </button>
-            <div className="flex-1 overflow-y-auto">
-              <ChatbotPage />
-            </div>
+          <div className="flex-1 padding-4">
+            <ChatbotPage />
           </div>
         </div>
+
       )}
     </div>
   );

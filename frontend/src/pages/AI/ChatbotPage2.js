@@ -11,7 +11,6 @@ function ChatbotPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [suggestions, setSuggestions] = useState([
     '요리 추천해줘',
-    '간단한 요리 추천해줘',
     '이걸로 뭘 만들 수 있어?'
   ]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -175,6 +174,7 @@ return (
       flexDirection: 'column',
       height: '90vh' // ✅ 높이 고정
     }}>
+      
       {/* 상단 헤더 */}
       <div style={{
         padding: 16,
@@ -184,6 +184,38 @@ return (
       }}>
         <b>🍳 요리 추천 챗봇</b>
       </div>
+            {/* 대시보드 버튼 - 좌측 상단 */}
+      <button
+        onClick={goToDashboard}
+        style={{
+          position: 'absolute',
+          top: 90,
+          left: 20,
+          padding: '12px 20px',
+          background: '#2196F3',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 8,
+          fontSize: 16,
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          boxShadow: '0 2px 8px rgba(33, 150, 243, 0.3)',
+          transition: 'all 0.2s ease',
+          zIndex: 1000
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.background = '#1976D2';
+          e.target.style.transform = 'translateY(-2px)';
+          e.target.style.boxShadow = '0 4px 12px rgba(33, 150, 243, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.background = '#2196F3';
+          e.target.style.transform = 'translateY(0px)';
+          e.target.style.boxShadow = '0 2px 8px rgba(33, 150, 243, 0.3)';
+        }}
+      >
+        ← 메인 페이지
+      </button>
 
       {/* 채팅 메시지 영역 */}
       <div style={{
