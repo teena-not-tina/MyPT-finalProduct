@@ -1,0 +1,142 @@
+{
+  "_id": {
+    "$oid": "6837d20dcb5b34d8c807a927"
+  },
+  "user_id": 3,
+  "day": 1,
+  "title": "testing analysis",
+  "exercises": [
+    {
+      "id": 1,
+      "name": "푸시업",
+      "sets": [
+        {
+          "id": 1,
+          "reps": 12,
+          "completed": false
+        },
+        {
+          "id": 2,
+          "reps": 12,
+          "completed": false
+        },
+        {
+          "id": 3,
+          "reps": 12,
+          "completed": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "스쿼트",
+      "sets": [
+        {
+          "id": 1,
+          "reps": 15,
+          "completed": false
+        },
+        {
+          "id": 2,
+          "reps": 15,
+          "completed": false
+        },
+        {
+          "id": 3,
+          "reps": 15,
+          "completed": false
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "레그레이즈",
+      "sets": [
+        {
+          "id": 1,
+          "reps": 15,
+          "completed": false
+        },
+        {
+          "id": 2,
+          "reps": 15,
+          "completed": false
+        },
+        {
+          "id": 3,
+          "reps": 15,
+          "completed": false
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "덤벨컬",
+      "sets": [
+        {
+          "id": 1,
+          "reps": 12,
+          "weight": 8,
+          "completed": false
+        },
+        {
+          "id": 2,
+          "reps": 12,
+          "weight": 8,
+          "completed": false
+        },
+        {
+          "id": 3,
+          "reps": 12,
+          "weight": 8,
+          "completed": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "원암 덤벨로우",
+      "sets": [
+        {
+          "id": 1,
+          "reps": 12,
+          "weight": 10,
+          "completed": false
+        },
+        {
+          "id": 2,
+          "reps": 12,
+          "weight": 10,
+          "completed": false
+        },
+        {
+          "id": 3,
+          "reps": 12,
+          "weight": 10,
+          "completed": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "플랭크",
+      "sets": [
+        {
+          "id": 1,
+          "time": "30초",
+          "completed": false
+        },
+        {
+          "id": 2,
+          "time": "30초",
+          "completed": false
+        },
+        {
+          "id": 3,
+          "time": "30초",
+          "completed": false
+        }
+      ]
+    }
+  ]
+}
