@@ -1,0 +1,19 @@
+# =================================================
+# TORCH-ONLY REQUIREMENTS (Fallback for pip-only environments)
+# =================================================
+# 
+# ⚠️ WARNING: Use this ONLY if conda is not available!
+# These torch packages often cause CUDA recognition issues.
+# Prefer conda installation: 
+# conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+
+# Torch packages for pip-only installation (CUDA 11.8)
+torch==2.1.1+cu118
+torchvision==0.16.1+cu118
+torchaudio==2.1.1+cu118
+
+# Installation command if using this file:
+# pip install -r torch-requirements.txt --extra-index-url https://download.pytorch.org/whl/cu118
+# 
+# Then install main requirements:
+# pip install -r requirements.txt

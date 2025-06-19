@@ -695,28 +695,7 @@ async def recommend_workout(data: dict):
                 detail="데이터베이스 연결에 실패했습니다. 잠시 후 다시 시도해주세요."
             )
 
-        # 사용자 벡터DB에 데이터 저장 (user_id 기반)
-        if user_id and user_id not in ["None", "null"]:
-            try:
-                analyzer.user_vector_store.add_user_inbody_data(user_id, inbody_data)
-                analyzer.user_vector_store.add_user_preferences(user_id, preferences)
-                logger.info(f"✅ 사용자 {user_id}의 데이터를 벡터DB에 저장 완료")
-            except Exception as e:
-                logger.error(f"사용자 데이터 벡터DB 저장 실패: {str(e)}")
-
-        # 사용자별 컨텍스트 가져오기 (개인화)
-        user_context = ""
-        if user_id and user_id not in ["None", "null"]:
-            try:
-                user_context = analyzer.user_vector_store.get_user_context(
-                    user_id, 
-                    f"운동 루틴 추천 {preferences.get('goal', '')} 개인화"
-                )
-                logger.info(f"✅ 사용자 {user_id}의 개인화 컨텍스트 조회 완료")
-            except Exception as e:
-                logger.error(f"사용자 컨텍스트 조회 실패: {str(e)}")
-
-        # 🔥 운동 루틴 생성 (사용자별 개인화 컨텍스트 포함)
+        # 🔥 운동 루틴 생성
         routine_result = await analyzer.generate_enhanced_routine_async({
             "inbody": inbody_data,
             "preferences": preferences,
@@ -724,31 +703,35 @@ async def recommend_workout(data: dict):
             "user_context": user_context
         })
 
-        # 🔥 결과가 딕셔너리 형태인지 확인 (성공적으로 생성된 경우)
+        # 🔥 결과 처리 개선
         if isinstance(routine_result, dict) and routine_result.get('success'):
             saved_routines = routine_result.get('routines', [])
             
-            # 🔥 추가 검증: 실제로 저장되었는지 DB에서 재확인
+            # 🔥 최종 검증
             if user_id and user_id not in ["None", "null"]:
                 try:
                     verification_routines = analyzer.db.get_user_routines(user_id)
                     logger.info(f"🔍 최종 검증: 사용자 {user_id}의 DB 저장 루틴 수: {len(verification_routines)}")
                     
                     if len(verification_routines) == 0:
-                        logger.error(f"❌ 심각한 오류: 저장 완료라고 했지만 DB에 루틴이 없음")
-                        raise ValueError("루틴 저장이 완료되지 않았습니다.")
+                        raise HTTPException(
+                            status_code=500,
+                            detail="루틴이 데이터베이스에 저장되지 않았습니다. 다시 시도해주세요."
+                        )
                     
-                    # 실제 DB 데이터로 응답 구성
                     saved_routines = verification_routines
                     
                 except Exception as verification_error:
                     logger.error(f"최종 검증 실패: {str(verification_error)}")
-                    if not saved_routines:  # saved_routines가 비어있으면 오류 발생
-                        raise ValueError("루틴 저장 검증에 실패했습니다.")
+                    if not saved_routines:
+                        raise HTTPException(
+                            status_code=500,
+                            detail="루틴 저장 검증에 실패했습니다."
+                        )
             
-            logger.info(f"✅ 사용자 {user_id}의 개인화된 운동 루틴 생성 및 DB 저장 완료")
+            logger.info(f"✅ 사용자 {user_id}의 개인화된 운동 루틴 생성 및 저장 완료")
             
-            # 🔥 성공 응답에 저장 상태 포함
+            # 🔥 성공 응답
             response_data = {
                 "success": True,
                 "analysis": routine_result.get('analysis', ''),
@@ -759,13 +742,19 @@ async def recommend_workout(data: dict):
                 "save_verification": {
                     "db_saved_count": len(saved_routines),
                     "generation_time": routine_result.get('generation_time'),
-                    "save_errors": routine_result.get('save_errors')
+                    "save_errors": routine_result.get('save_errors'),
+                    "validation_info": routine_result.get('validation_info')
+                },
+                "ui_hints": {
+                    "show_routine": True,
+                    "routine_type": "personalized",
+                    "enable_modifications": True
                 }
             }
             
             return CustomJSONResponse(response_data)
         else:
-            # Fallback 텍스트 응답
+            # Fallback 응답
             logger.info("Fallback 텍스트 운동 루틴 생성")
             return CustomJSONResponse({
                 "success": True,

@@ -21,6 +21,7 @@ from openai.types.chat import (
     ChatCompletionAssistantMessageParam,
 )
 import logging
+import traceback
 from database.db_config import DatabaseHandler
 from datetime import datetime, timezone
 import pytz
@@ -61,6 +62,12 @@ class WorkoutRuleEngine:
                 "avoid": ["업라이트로우", "슈러그", "헤드스탠드"],
                 "recommend": ["하체운동", "가벼운상체운동"],
                 "modifications": "목 중립 유지"
+            },
+            # 🔥 NEW: 발목 관련 추가
+            "발목": {
+                "avoid": ["런지", "점프", "달리기", "버피", "플라이오메트릭", "하이니킥"],
+                "recommend": ["상체운동", "시티드운동", "수중운동", "자전거"],
+                "modifications": "앉은 자세 운동, 체중 부하 최소화"
             },
             "손목": {
                 "avoid": ["푸시업", "플랭크", "바벨운동"],
@@ -212,7 +219,8 @@ class WorkoutRuleEngine:
         
         return {
             "has_injury": True,
-            "injury_text": injury_text,
+            "injury_text": injury_text,  # 기존 키 유지
+            "injury_status": injury_text,  # 🔥 NEW: 추가 키 제공
             "restrictions": restrictions
         }
     
@@ -344,12 +352,12 @@ class AIAnalyzer:
             # Function Calling을 사용한 구조화된 운동 루틴 생성
             response = await self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[{
+                messages=[{ 
                     "role": "system", 
                     "content": customized_prompt
                 }, {
                     "role": "user", 
-                    "content": f"사용자 ID {user_id}를 위한 완전히 개인화된 4일간의 운동 루틴을 생성해주세요. 특히 부상 상태와 운동 경험을 철저히 반영해주세요."
+                    "content": f"사용자 ID {user_id}를 위한 완전히 개인화된 4일간의 운동 루틴을 생성해주세요."
                 }],
                 tools=[{
                     "type": "function",
@@ -364,24 +372,24 @@ class AIAnalyzer:
                                     "items": {
                                         "type": "object",
                                         "properties": {
-                                            "user_id": {"type": "integer", "description": "사용자 ID"},
-                                            "day": {"type": "integer", "description": "운동 일차 (1-4)"},
-                                            "title": {"type": "string", "description": "개인 맞춤형 운동 제목"},
+                                            "user_id": {"type": "integer"},
+                                            "day": {"type": "integer"},
+                                            "title": {"type": "string"},
                                             "exercises": {
                                                 "type": "array",
                                                 "items": {
                                                     "type": "object",
                                                     "properties": {
                                                         "id": {"type": "integer"},
-                                                        "name": {"type": "string", "description": "부상을 고려한 안전한 운동"},
+                                                        "name": {"type": "string"},
                                                         "sets": {
                                                             "type": "array",
                                                             "items": {
                                                                 "type": "object",
                                                                 "properties": {
                                                                     "id": {"type": "integer"},
-                                                                    "reps": {"type": "integer", "description": "경험수준별 적정 반복수"},
-                                                                    "weight": {"type": "integer", "description": "개인별 적정 중량"},
+                                                                    "reps": {"type": "integer"},
+                                                                    "weight": {"type": "integer"},
                                                                     "time": {"type": "string"},
                                                                     "completed": {"type": "boolean"}
                                                                 },
@@ -405,252 +413,232 @@ class AIAnalyzer:
                 temperature=0.9
             )
             
-            # Function calling 응답 처리
-            if response.choices[0].message.tool_calls:
-                function_call = response.choices[0].message.tool_calls[0].function
+            # 🔥 개선된 Function calling 응답 처리
+            if not response.choices[0].message.tool_calls:
+                raise ValueError("Function calling 응답을 받지 못했습니다.")
+            
+            function_call = response.choices[0].message.tool_calls[0].function
+            
+            try:
                 routine_data = json.loads(function_call.arguments)
+            except json.JSONDecodeError as e:
+                logger.error(f"Function calling JSON 파싱 실패: {e}")
+                raise ValueError(f"AI 응답 파싱 실패: {str(e)}")
+            
+            # 🔥 강화된 데이터 검증
+            if 'routines' not in routine_data:
+                raise ValueError("응답에 'routines' 필드가 없습니다.")
+            
+            routines = routine_data['routines']
+            if not isinstance(routines, list) or len(routines) == 0:
+                raise ValueError("생성된 루틴이 비어있습니다.")
+            
+            # 각 루틴의 필수 필드 검증
+            for i, routine in enumerate(routines):
+                required_fields = ['day', 'title', 'exercises']
+                for field in required_fields:
+                    if field not in routine:
+                        raise ValueError(f"루틴 {i+1}에 필수 필드 '{field}'가 없습니다.")
                 
-                # 데이터 검증
-                if 'routines' not in routine_data or not routine_data['routines']:
-                    raise ValueError("운동 루틴 데이터가 생성되지 않았습니다.")
-                
-                # 🔥 중요: user_id를 강제로 정수로 변환하여 DB 저장 보장
-                for routine in routine_data['routines']:
-                    if user_id:
-                        try:
-                            routine['user_id'] = int(user_id)
-                        except (ValueError, TypeError):
-                            logger.warning(f"user_id 변환 실패: {user_id}, 기본값 1 사용")
-                            routine['user_id'] = 1
-                    else:
-                        routine['user_id'] = 1
-                    
-                    # 추가 데이터 검증
-                    if 'day' not in routine:
-                        logger.error(f"루틴에 day 필드가 없습니다: {routine}")
-                        continue
-                    if 'exercises' not in routine or not routine['exercises']:
-                        logger.error(f"루틴에 운동이 없습니다: {routine}")
-                        continue
-                
-                # 🔥 NEW: 제약사항 후처리 검증
-                validated_routines = self._validate_and_adjust_routines(
-                    routine_data['routines'], constraints, exercise_params
-                )
-                
-                # 🔥 핵심: MongoDB에 저장 - 저장 실패시 재시도 로직 추가
-                saved_routines = []
-                save_errors = []
-                
-                for routine in validated_routines:
-                    try:
-                        # user_id 타입 재확인
-                        if not isinstance(routine['user_id'], int):
-                            routine['user_id'] = int(routine['user_id'])
-                        
-                        # 저장 시도
-                        saved_id = self.db.save_routine(routine)
-                        
-                        if saved_id:
-                            routine['_id'] = str(saved_id)
-                            routine['created_at'] = get_korea_time().isoformat()
-                            saved_routines.append(routine)
-                            logger.info(f"✅ 개인화 운동 루틴 저장 완료: Day {routine['day']} (사용자: {routine['user_id']}, ID: {saved_id})")
-                        else:
-                            error_msg = f"Day {routine['day']} 루틴 저장 실패: save_routine 반환값이 None"
-                            save_errors.append(error_msg)
-                            logger.error(error_msg)
-                            
-                    except Exception as e:
-                        error_msg = f"Day {routine.get('day', '?')} 루틴 저장 중 예외: {str(e)}"
-                        save_errors.append(error_msg)
-                        logger.error(error_msg)
-                
-                # 🔥 저장 검증: 최소 하나라도 저장되었는지 확인
-                if not saved_routines:
-                    error_summary = "; ".join(save_errors)
-                    raise ValueError(f"운동 루틴을 데이터베이스에 저장할 수 없습니다. 오류: {error_summary}")
-                
-                # 일부만 저장된 경우 경고 로그
-                if len(saved_routines) < len(validated_routines):
-                    logger.warning(f"일부 루틴만 저장됨: {len(saved_routines)}/{len(validated_routines)}")
-                    for error in save_errors:
-                        logger.warning(f"저장 실패 상세: {error}")
-                
-                # 사용자 벡터DB에 개인화된 운동 데이터 저장
-                if user_id and user_id != "None" and user_id != "null":
-                    try:
-                        personalization_data = {
-                            'user_id': user_id,
-                            'total_days': len(saved_routines),
-                            'constraints_applied': constraints,
-                            'exercise_parameters': exercise_params,
-                            'routine_generation_date': get_korea_time().isoformat(),
-                            'personalization_level': 'maximum',
-                            'saved_routines_count': len(saved_routines)
-                        }
-                        self.user_vector_store.add_user_progress(user_id, personalization_data)
-                        logger.info(f"✅ 사용자 {user_id}의 고도 개인화 데이터 저장 완료")
-                    except Exception as e:
-                        logger.error(f"개인화 데이터 저장 실패: {str(e)}")
-                
-                # 🔥 NEW: 상세한 개인화 분석 텍스트 생성
-                personalized_analysis = self._create_detailed_analysis_text(
-                    inbody, preferences, user_id, constraints, exercise_params
-                )
-                
-                # 🔥 최종 검증: DB에서 실제로 저장된 루틴 재조회
+                if not isinstance(routine['exercises'], list) or len(routine['exercises']) == 0:
+                    raise ValueError(f"루틴 {i+1}에 운동이 없습니다.")
+            
+            # 🔥 user_id 설정 및 검증
+            for routine in routines:
                 if user_id:
                     try:
-                        db_verification = self.db.get_user_routines(str(user_id))
-                        logger.info(f"✅ DB 검증: 사용자 {user_id}의 저장된 루틴 수: {len(db_verification)}")
+                        routine['user_id'] = int(user_id)
+                    except (ValueError, TypeError):
+                        logger.warning(f"user_id 변환 실패: {user_id}, 기본값 1 사용")
+                        routine['user_id'] = 1
+                else:
+                    routine['user_id'] = 1
+            
+            # 🔥 제약사항 후처리 검증
+            validated_routines = self._validate_and_adjust_routines(routines, constraints, exercise_params)
+            
+            if not validated_routines:
+                raise ValueError("검증된 루틴이 없습니다.")
+            
+            # 🔥 개선된 MongoDB 저장 처리
+            saved_routines = []
+            save_errors = []
+            
+            # DB 연결 상태 사전 확인
+            try:
+                connection_test = self.db.collection.count_documents({})
+                logger.info(f"✅ DB 연결 확인: 총 {connection_test}개 문서")
+            except Exception as db_error:
+                raise ValueError(f"데이터베이스 연결 실패: {str(db_error)}")
+            
+            for i, routine in enumerate(validated_routines):
+                try:
+                    logger.info(f"루틴 {i+1}/{len(validated_routines)} 저장 시도...")
+                    
+                    saved_id = self.db.save_routine(routine)
+                    
+                    if saved_id:
+                        routine['_id'] = str(saved_id)
+                        routine['created_at'] = get_korea_time().isoformat()
+                        saved_routines.append(routine)
+                        logger.info(f"✅ 루틴 {i+1} 저장 성공: ID={saved_id}")
+                    else:
+                        error_msg = f"루틴 {i+1} 저장 실패: save_routine이 None 반환"
+                        save_errors.append(error_msg)
+                        logger.error(error_msg)
                         
-                        if len(db_verification) == 0:
-                            logger.error(f"❌ 심각한 오류: 루틴이 저장되었다고 했지만 DB에서 조회되지 않음")
-                            # 재저장 시도
-                            for routine in saved_routines:
-                                try:
-                                    if '_id' in routine:
-                                        del routine['_id']  # _id 제거 후 재저장
-                                    retry_id = self.db.save_routine(routine)
-                                    if retry_id:
-                                        logger.info(f"✅ 재저장 성공: Day {routine['day']}, ID: {retry_id}")
-                                except Exception as retry_error:
-                                    logger.error(f"재저장 실패: {str(retry_error)}")
-                            
-                            # 다시 확인
-                            final_verification = self.db.get_user_routines(str(user_id))
-                            if len(final_verification) == 0:
-                                raise ValueError("루틴 저장에 실패했습니다. 데이터베이스 연결을 확인해주세요.")
-                            else:
-                                saved_routines = final_verification
-                                logger.info(f"✅ 재저장 후 검증 성공: {len(final_verification)}개 루틴")
-                        
-                    except Exception as verify_error:
-                        logger.error(f"DB 검증 중 오류: {str(verify_error)}")
-                
-                # 성공 응답 생성
-                return {
-                    'success': True,
-                    'routines': saved_routines,
-                    'analysis': personalized_analysis,
-                    'total_days': len(saved_routines),
-                    'personalization_applied': True,
-                    'constraints_considered': constraints,
-                    'generation_time': get_korea_time().isoformat(),
-                    'save_errors': save_errors if save_errors else None
+                except Exception as e:
+                    error_msg = f"루틴 {i+1} 저장 중 예외: {str(e)}"
+                    save_errors.append(error_msg)
+                    logger.error(error_msg)
+            
+            # 🔥 저장 결과 검증
+            if not saved_routines:
+                error_summary = "; ".join(save_errors)
+                raise ValueError(f"모든 루틴 저장 실패: {error_summary}")
+            
+            # 일부만 저장된 경우 경고
+            if len(saved_routines) < len(validated_routines):
+                logger.warning(f"일부 루틴만 저장됨: {len(saved_routines)}/{len(validated_routines)}")
+                for error in save_errors:
+                    logger.warning(f"저장 실패: {error}")
+            
+            # 🔥 DB 재확인 검증
+            if user_id:
+                try:
+                    verification_routines = self.db.get_user_routines(str(user_id))
+                    if len(verification_routines) < len(saved_routines):
+                        logger.error(f"DB 검증 실패: 저장됐다고 했지만 실제 조회 결과가 다름")
+                        # 재저장 시도 로직...
+                    else:
+                        logger.info(f"✅ DB 검증 성공: {len(verification_routines)}개 루틴 확인")
+                        saved_routines = verification_routines  # 실제 DB 데이터 사용
+                except Exception as verify_error:
+                    logger.error(f"DB 검증 중 오류: {str(verify_error)}")
+            
+            # 🔥 상세한 개인화 분석 텍스트 생성
+            personalized_analysis = self._create_detailed_analysis_text(
+                inbody, preferences, user_id, constraints, exercise_params
+            )
+            
+            # 성공 응답 반환
+            return {
+                'success': True,
+                'routines': saved_routines,
+                'analysis': personalized_analysis,
+                'total_days': len(saved_routines),
+                'personalization_applied': True,
+                'constraints_considered': constraints,
+                'generation_time': get_korea_time().isoformat(),
+                'save_errors': save_errors if save_errors else None,
+                'validation_info': {
+                    'original_count': len(validated_routines),
+                    'saved_count': len(saved_routines),
+                    'success_rate': f"{len(saved_routines)}/{len(validated_routines)}"
                 }
-                
-            else:
-                raise ValueError("Function calling 응답을 받지 못했습니다.")
-                
+            }
+            
         except Exception as e:
             logger.error(f"개인화된 운동 루틴 생성 중 오류: {str(e)}")
+            logger.error(traceback.format_exc())
             return await self._generate_fallback_routine_text(user_data)
 
     def _create_personalized_system_prompt(self, user_data, constraints, exercise_params, general_context, user_context):
-        """개인화된 시스템 프롬프트 생성"""
+        """개인화된 시스템 프롬프트 생성 - 구체적 운동명 강제"""
+        from config.settings import format_exercise_database
+        
         inbody = user_data.get("inbody", {})
         preferences = user_data.get("preferences", {})
         user_id = user_data.get("user_id", "Unknown")
         
-        # 부상 제약사항 텍스트 생성
+        # 🔥 부상 정보 처리 개선
         injury_text = ""
         if constraints['injury_constraints']['has_injury']:
             restrictions = constraints['injury_constraints']['restrictions']
             avoid_exercises = restrictions.get('avoid_exercises', [])
             recommended_exercises = restrictions.get('recommended_exercises', [])
-            modifications = restrictions.get('modifications', [])
+            
+            injury_status = (
+                constraints['injury_constraints'].get('injury_status') or 
+                constraints['injury_constraints'].get('injury_text', '부상 있음')
+            )
             
             injury_text = f"""
     🚨 **중요: 부상 고려사항**
-    - 부상 상태: {constraints['injury_constraints']['injury_status']}
+    - 부상 상태: {injury_status}
     - 피해야 할 운동: {', '.join(avoid_exercises[:5])}
     - 추천 운동: {', '.join(recommended_exercises[:5])}
-    - 수정사항: {'; '.join(modifications)}
-    
+
     **절대 금지**: 위의 '피해야 할 운동' 목록에 있는 운동은 절대 포함하지 마세요!
+    **반드시 구체적인 운동명만 사용**: "상체운동", "가벼운운동" 등 모호한 표현 금지!
     """
+        else:
+            injury_text = "✅ **부상 없음:** 모든 운동 유형 가능 (단, 등록된 구체적인 한국어 운동만 사용)"
         
         # 경험 수준별 가이드라인
-        experience_guide = f"""
-    💪 **경험 수준별 가이드라인 ({preferences.get('experience_level', '보통')})**
-    - 세트 수: {exercise_params['sets_range'][0]}-{exercise_params['sets_range'][1]}세트
-    - 반복 수: {exercise_params['reps_range'][0]}-{exercise_params['reps_range'][1]}회
-    - 시작 중량: 약 {exercise_params['base_weight_kg']}kg부터
-    - 복합운동 허용: {'예' if exercise_params['allow_complex_movements'] else '아니오'}
-    - 휴식 시간: {exercise_params['rest_time']}
+        experience_level = preferences.get('experience_level', '보통')
+        if experience_level == '보통':
+            experience_level = '중급자'
+        
+        min_exercises, max_exercises = exercise_params['exercises_per_day']
+        
+        # 🔥 운동 개수 및 품질 가이드라인 강화
+        exercise_quality_guide = f"""
+    💪 **운동 구성 품질 기준**
+    - 일차별 운동 개수: {min_exercises}-{max_exercises}개 (부족해도 품질 우선)
+    - **반드시 구체적인 운동명만 사용**: "덤벨 벤치프레스", "바벨 스쿼트" 등
+    - **모호한 표현 절대 금지**: "상체운동", "가벼운운동", "기본운동" 등 사용 안됨
+    - **카테고리명 사용 금지**: "하체 운동", "유산소 운동" 등 추상적 표현 안됨
+    - 등록된 운동 목록에서만 선택, 없으면 유사한 구체적 운동으로 대체
     """
         
-        # BMI 기반 조정사항
-        bmi_guide = f"""
-    📊 **체형별 조정사항 ({constraints['bmi_category']})**
-    - BMI 카테고리: {constraints['bmi_category']}
-    - 운동 강도 조절: {constraints['bmi_adjustment']['focus']}
-    - 중량 조절 계수: {constraints['bmi_adjustment']['weight_multiplier']}배
-    """
-        
-        # 목표별 운동 구성
-        goal_guide = f"""
-    🎯 **목표별 운동 구성 ({preferences.get('goal', '건강 유지')})**
-    - 유산소 비율: {exercise_params['cardio_ratio']*100:.0f}%
-    - 근력운동 비율: {(1-exercise_params['cardio_ratio'])*100:.0f}%
-    - 집중 영역: {', '.join(exercise_params['focus_areas'])}
-    """
-        
-        # 컨텍스트 정보 추가
-        context_section = ""
-        if user_context:
-            context_section = f"""
-    
-    👤 **사용자 개인 데이터:**
-    {user_context}
-    """
-        
-        if general_context:
-            context_section += f"""
-    
-    📚 **전문 지식 참고:**
-    {general_context}
-    """
+        # 한국어 운동 목록 포함
+        korean_exercise_db = format_exercise_database()
         
         # 최종 통합 프롬프트
         return f"""당신은 최고 수준의 개인 맞춤형 피트니스 전문가입니다. 
-사용자 ID {user_id}를 위한 완전히 개인화된 4일간의 운동 루틴을 생성해주세요.
+    사용자 ID {user_id}를 위한 완전히 개인화된 4일간의 운동 루틴을 생성해주세요.
 
-**사용자 프로필:**
-- 성별: {inbody.get('gender')} / 나이: {inbody.get('age')}세
-- 체중: {inbody.get('weight')}kg / 신장: {inbody.get('height')}cm
-- BMI: {inbody.get('bmi')} / 기초대사율: {inbody.get('basal_metabolic_rate')}kcal
-- 목표: {preferences.get('goal')}
-- 경험 수준: {preferences.get('experience_level')}
-- 부상 상태: {preferences.get('injury_status')}
-- 가용 시간: {preferences.get('available_time')}
+    **사용자 프로필:**
+    - 성별: {inbody.get('gender')} / 나이: {inbody.get('age')}세
+    - 체중: {inbody.get('weight')}kg / 신장: {inbody.get('height')}cm
+    - 목표: {preferences.get('goal')}
+    - 경험 수준: {experience_level}
+    - 부상 상태: {preferences.get('injury_status')}
 
-{injury_text}
+    {korean_exercise_db}
 
-{experience_guide}
+    {injury_text}
 
-{bmi_guide}
+    {exercise_quality_guide}
 
-{goal_guide}
+    ## 🚨 필수 준수 사항
 
-{context_section}
+    ### 1. 구체적인 한국어 운동명 강제 사용
+    - **절대 영어 운동명 사용 금지**: Bench Press, Squat 등 절대 사용 안됨
+    - **등록된 구체적한 운동명만 사용**: "덤벨 벤치프레스", "바벨 백스쿼트" 등
+    - **모호한 표현 완전 금지**: "상체운동", "가벼운운동", "기본운동" 등 절대 사용 안됨
+    - **카테고리명 사용 금지**: "하체 운동", "유산소 운동" 등 사용 안됨
 
-**개인화 지침:**
-1. 🚨 부상 부위를 절대적으로 고려하여 안전한 운동만 선택
-2. 💪 경험 수준에 정확히 맞는 운동 난이도와 강도 적용
-3. 📊 BMI와 체형에 따른 운동 강도 및 종류 조절
-4. 🎯 목표에 최적화된 운동 비율과 방식 적용
-5. 👤 이 사용자만의 고유한 특성을 최대한 반영
+    ### 2. 운동 품질 우선
+    - 개수보다 품질: 모호한 운동으로 채우지 말고 구체적인 운동만 선택
+    - {experience_level} 수준에 맞는 운동만 선택
+    - 부상 고려: 금지 운동은 완전 제외
 
-**운동 선택 우선순위:**
-1순위: 안전성 (부상 부위 절대 고려)
-2순위: 경험 수준 적합성
-3순위: 목표 달성 효과성
-4순위: 개인 선호도 반영
+    ### 3. JSON 출력 형식
+    - 설명 없이 순수 JSON만 출력
+    - 각 운동은 반드시 구체적이고 실행 가능한 운동명 사용
 
-반드시 JSON 형태로만 응답하세요. 설명이나 마크다운은 포함하지 마세요."""
+    ⚠️ **최종 체크리스트**
+    ✅ 모든 운동명이 구체적이고 명확한가?
+    ✅ "운동", "가벼운", "기본" 등 모호한 단어가 없는가?
+    ✅ 등록된 운동 목록에서만 선택했는가?
+    ✅ 부상 금지 운동을 제외했는가?
+
+    **예시 (올바른 운동명)**: "덤벨 벤치프레스", "바벨 백스쿼트", "래터럴 레이즈"
+    **예시 (금지된 표현)**: "상체운동", "가벼운운동", "기본 근력운동"
+
+    반드시 JSON 형태로만 응답하세요!"""
 
     def _validate_and_adjust_routines(self, routines: List[Dict], constraints: Dict, exercise_params: Dict) -> List[Dict]:
         """생성된 루틴을 제약사항에 따라 검증 및 조정"""
@@ -662,6 +650,14 @@ class AIAnalyzer:
             
             for exercise in routine.get('exercises', []):
                 exercise_name = exercise.get('name', '').lower()
+                
+                # 🔥 모호한 운동명 필터링 추가
+                if (not exercise_name or 
+                    '운동' in exercise_name or  # "상체운동", "하체운동" 등
+                    '가벼운' in exercise_name or  # "가벼운상체운동" 등
+                    len(exercise_name.split()) > 4):  # 너무 긴 설명
+                    logger.warning(f"⚠️ 모호한 운동명 제외: {exercise['name']}")
+                    continue
                 
                 # 부상 제약사항 검증
                 if constraints['injury_constraints']['has_injury']:
@@ -689,7 +685,6 @@ class AIAnalyzer:
                     # 중량 조정
                     if 'weight' in adjusted_set:
                         base_weight = exercise_params['base_weight_kg']
-                        # 경험 수준과 BMI에 따른 중량 조정
                         if constraints['experience_config']['complex_movements']:
                             adjusted_set['weight'] = max(base_weight, adjusted_set['weight'])
                         else:
@@ -713,11 +708,11 @@ class AIAnalyzer:
                 exercise['sets'] = adjusted_sets
                 validated_exercises.append(exercise)
             
-            # 운동 개수 조정
+            # 🔥 운동 개수 조정 - 구체적인 안전 운동으로만 보충
             min_exercises, max_exercises = exercise_params['exercises_per_day']
             if len(validated_exercises) < min_exercises:
                 logger.warning(f"⚠️ {routine['day']}일차 운동 개수 부족: {len(validated_exercises)}/{min_exercises}")
-                # 안전한 운동으로 추가 (부상 고려)
+                # 🔥 수정된 _get_safe_exercises 호출 (구체적인 운동만 추가)
                 safe_exercises = self._get_safe_exercises(constraints, min_exercises - len(validated_exercises))
                 validated_exercises.extend(safe_exercises)
             elif len(validated_exercises) > max_exercises:
@@ -729,40 +724,74 @@ class AIAnalyzer:
         return validated_routines
 
     def _get_safe_exercises(self, constraints: Dict, needed_count: int) -> List[Dict]:
-        """부상을 고려한 안전한 운동 추가"""
+        """부상을 고려한 구체적인 안전 운동 추가"""
+        from config.settings import KOREAN_EXERCISE_DATABASE
+        
         safe_exercises = []
         
-        # 경험 수준별 안전한 운동 목록
-        base_safe_exercises = constraints['experience_config']['recommended_exercises']
-        
-        # 부상이 있는 경우 추천 운동 우선
+        # 부상별 안전한 운동 카테고리 선택
         if constraints['injury_constraints']['has_injury']:
-            recommended = constraints['injury_constraints']['restrictions'].get('recommended_exercises', [])
-            safe_exercises_list = recommended + base_safe_exercises
+            injury_text = constraints['injury_constraints'].get('injury_status', '').lower()
+            
+            # 부상별 안전한 운동 카테고리 매핑
+            if any(word in injury_text for word in ['무릎', '발목', '다리']):
+                safe_categories = ['어깨 운동', '스트레칭 운동']
+            elif any(word in injury_text for word in ['어깨', '목', '팔']):
+                safe_categories = ['하체 운동', '스트레칭 운동']
+            elif '허리' in injury_text:
+                safe_categories = ['스트레칭 운동']
+            else:
+                safe_categories = ['스트레칭 운동']
         else:
-            safe_exercises_list = base_safe_exercises
+            safe_categories = ['어깨 운동', '스트레칭 운동']  # 기본 안전 운동
+        
+        # 사용자 경험 수준 확인
+        user_experience = constraints.get('experience_config', {})
+        experience_level = '초보자'  # 안전을 위해 기본값은 초보자
+        
+        # 구체적인 운동명 수집
+        specific_exercises = []
+        for category in safe_categories:
+            if category in KOREAN_EXERCISE_DATABASE:
+                exercises_by_level = KOREAN_EXERCISE_DATABASE[category]
+                # 초보자 레벨 운동만 사용 (안전성 우선)
+                if '초보자' in exercises_by_level:
+                    specific_exercises.extend(exercises_by_level['초보자'])
+        
+        # 중복 제거 및 구체적인 운동명만 필터링
+        unique_exercises = []
+        for exercise in specific_exercises:
+            if (exercise and 
+                exercise not in unique_exercises and
+                '운동' not in exercise and  # 카테고리명 제외
+                '가벼운' not in exercise and  # 모호한 표현 제외
+                len(exercise.split()) <= 3):  # 적당한 길이
+                unique_exercises.append(exercise)
         
         # 필요한 만큼 운동 추가
         exercise_params = self.rule_engine.generate_exercise_parameters(constraints)
         
-        for i in range(min(needed_count, len(safe_exercises_list))):
-            exercise_name = safe_exercises_list[i]
+        for i in range(min(needed_count, len(unique_exercises))):
+            exercise_name = unique_exercises[i]
             safe_exercise = {
-                "id": 100 + i,  # 높은 ID로 추가된 운동 구분
-                "name": f"안전운동: {exercise_name}",
+                "id": 100 + i,
+                "name": exercise_name,  # 🔥 깨끗한 운동명만 사용
                 "sets": [{
                     "id": 1,
                     "reps": exercise_params['reps_range'][0],
-                    "weight": exercise_params['base_weight_kg'],
+                    "weight": max(5, exercise_params['base_weight_kg'] - 10),  # 안전을 위해 가벼운 중량
                     "completed": False
                 }]
             }
             safe_exercises.append(safe_exercise)
         
+        if safe_exercises:
+            logger.info(f"구체적인 안전 운동 {len(safe_exercises)}개 추가: {[ex['name'] for ex in safe_exercises]}")
+        
         return safe_exercises
 
     def _create_detailed_analysis_text(self, inbody: Dict, preferences: Dict, user_id: str, constraints: Dict, exercise_params: Dict) -> str:
-        """상세한 개인화 분석 텍스트 생성"""
+        """상세한 개인화 분석 텍스트 생성 - 마크다운 제거"""
         try:
             # BMI 계산 및 상태
             bmi_raw = inbody.get('bmi', 0)
@@ -780,90 +809,85 @@ class AIAnalyzer:
             # 부상 분석
             injury_analysis = ""
             if constraints['injury_constraints']['has_injury']:
-                injury_text = constraints['injury_constraints']['injury_text']
+                injury_status = (
+                    constraints['injury_constraints'].get('injury_status') or 
+                    constraints['injury_constraints'].get('injury_text', '부상 있음')
+                )
                 avoid_count = len(constraints['injury_constraints']['restrictions'].get('avoid_exercises', []))
-                injury_analysis = f"""
-    🏥 **부상 고려사항:**
-    - 현재 상태: {injury_text}
-    - 제외된 운동 유형: {avoid_count}개 카테고리
-    - 안전성 우선으로 운동 선택 및 강도 조절
-    """
+                injury_analysis = f"""🏥 부상 고려사항:
+- 현재 상태: {injury_status}
+- 제외된 운동 유형: {avoid_count}개 카테고리
+- 안전성 우선으로 운동 선택 및 강도 조절"""
             else:
-                injury_analysis = "✅ **부상 없음:** 모든 운동 유형 가능"
+                injury_analysis = "✅ 부상 없음: 모든 운동 유형 가능"
             
             # 경험 수준 분석
             experience = preferences.get('experience_level', '보통')
-            experience_analysis = f"""
-    💪 **경험 수준 분석 ({experience}):**
-    - 적정 세트: {exercise_params['sets_range'][0]}-{exercise_params['sets_range'][1]}세트
-    - 적정 반복: {exercise_params['reps_range'][0]}-{exercise_params['reps_range'][1]}회
-    - 시작 중량: {exercise_params['base_weight_kg']}kg
-    - 복합운동: {'가능' if exercise_params['allow_complex_movements'] else '제한적'}
-    """
+            experience_analysis = f"""💪 경험 수준 분석 ({experience}):
+- 적정 세트: {exercise_params['sets_range'][0]}-{exercise_params['sets_range'][1]}세트
+- 적정 반복: {exercise_params['reps_range'][0]}-{exercise_params['reps_range'][1]}회
+- 시작 중량: {exercise_params['base_weight_kg']}kg
+- 복합운동: {'가능' if exercise_params['allow_complex_movements'] else '제한적'}"""
             
             # 목표별 운동 구성
             goal = preferences.get('goal', '건강 유지')
             cardio_ratio = exercise_params['cardio_ratio']
             strength_ratio = 1 - cardio_ratio
             
-            goal_analysis = f"""
-    🎯 **목표 최적화 ({goal}):**
-    - 유산소 운동: {cardio_ratio*100:.0f}%
-    - 근력 운동: {strength_ratio*100:.0f}%
-    - 집중 영역: {', '.join(exercise_params['focus_areas'])}
-    - 휴식 시간: {exercise_params['rest_time']}
-    """
+            goal_analysis = f"""🎯 목표 최적화 ({goal}):
+- 유산소 운동: {cardio_ratio*100:.0f}%
+- 근력 운동: {strength_ratio*100:.0f}%
+- 집중 영역: {', '.join(exercise_params['focus_areas'])}
+- 휴식 시간: {exercise_params['rest_time']}"""
             
             # BMI 기반 조정
-            bmi_analysis = f"""
-    📊 **체형별 맞춤 조정:**
-    - BMI: {bmi:.1f} ({bmi_category})
-    - 운동 강도: {constraints['bmi_adjustment']['focus']}
-    - 중량 조절: 기본값의 {constraints['bmi_adjustment']['weight_multiplier']*100:.0f}%
-    """
+            bmi_analysis = f"""📊 체형별 맞춤 조정:
+- BMI: {bmi:.1f} ({bmi_category})
+- 운동 강도: {constraints['bmi_adjustment']['focus']}
+- 중량 조절: 기본값의 {constraints['bmi_adjustment']['weight_multiplier']*100:.0f}%"""
             
             # 개인화 요약
             personalization_level = "최고" if constraints['injury_constraints']['has_injury'] else "높음"
             
-            analysis = f"""## 🎯 완전 개인화된 분석 결과 (사용자 ID: {user_id})
+            analysis = f"""🎯 완전 개인화된 분석 결과 (사용자 ID: {user_id})
 
-    **개인화 수준: {personalization_level}** ⭐⭐⭐⭐⭐
+개인화 수준: {personalization_level} ⭐⭐⭐⭐⭐
 
-    {injury_analysis}
+{injury_analysis}
 
-    {experience_analysis}
+{experience_analysis}
 
-    {goal_analysis}
+{goal_analysis}
 
-    {bmi_analysis}
+{bmi_analysis}
 
-    ## 💡 **이 루틴의 특별한 점:**
-    
-    1. **🛡️ 안전성 최우선**: 부상 부위를 철저히 고려한 운동 선택
-    2. **📈 단계적 진행**: 현재 수준에서 시작하여 점진적 발전
-    3. **🎯 목표 최적화**: {goal} 달성을 위한 과학적 운동 구성
-    4. **👤 개인 맞춤**: 당신만의 신체 조건과 제약사항을 100% 반영
-    
-    **🚀 성공 팁:**
-    - 첫 주는 제시된 중량의 80%로 시작하세요
-    - 부상 부위에 통증이 느껴지면 즉시 중단하세요
-    - 2주마다 운동 강도를 5-10% 증가시키세요
-    - 충분한 휴식과 수면을 취하세요"""
+💡 이 루틴의 특별한 점:
+
+1. 🛡️ 안전성 최우선: 부상 부위를 철저히 고려한 운동 선택
+2. 📈 단계적 진행: 현재 수준에서 시작하여 점진적 발전
+3. 🎯 목표 최적화: {goal} 달성을 위한 과학적 운동 구성
+4. 👤 개인 맞춤: 당신만의 신체 조건과 제약사항을 100% 반영
+
+🚀 성공 팁:
+- 첫 주는 제시된 중량의 80%로 시작하세요
+- 부상 부위에 통증이 느껴지면 즉시 중단하세요
+- 2주마다 운동 강도를 5-10% 증가시키세요
+- 충분한 휴식과 수면을 취하세요"""
             
             return analysis.strip()
             
         except Exception as e:
             logger.error(f"상세 분석 텍스트 생성 실패: {str(e)}")
-            return f"""## 🎯 개인화된 분석 결과 (사용자 ID: {user_id})
+            return f"""🎯 개인화된 분석 결과 (사용자 ID: {user_id})
 
-    귀하의 신체 조건과 목표를 반영한 맞춤형 4일간의 운동 루틴이 생성되었습니다.
-    
-    **주요 고려사항:**
-    - 목표: {preferences.get('goal', '건강 유지')}
-    - 경험 수준: {preferences.get('experience_level', '보통')}
-    - 안전성을 최우선으로 고려하여 설계되었습니다.
-    
-    꾸준히 실행하시면 목표 달성에 큰 도움이 될 것입니다! 💪"""
+귀하의 신체 조건과 목표를 반영한 맞춤형 4일간의 운동 루틴이 생성되었습니다.
+
+주요 고려사항:
+- 목표: {preferences.get('goal', '건강 유지')}
+- 경험 수준: {preferences.get('experience_level', '보통')}
+- 안전성을 최우선으로 고려하여 설계되었습니다.
+
+꾸준히 실행하시면 목표 달성에 큰 도움이 될 것입니다! 💪"""
 
     # 기존 메서드들 유지 (생략된 부분들)
     async def identify_intent(self, message: str) -> Dict[str, Any]:

@@ -1,1 +1,59 @@
+# 환경 설정
 .env
+venv/
+.venv/
+env/
+conda-env/
+
+# 파이썬 캐시 파일
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+
+# 데이터베이스
+chroma_db/
+user_chroma_db/
+vector_db/
+user_vector_db/
+
+# 업로드 및 생성 파일
+uploads/
+extracted_images/
+data/uploads/
+*.pdf
+*.jpg
+*.png
+*.jpeg
+
+# 로그 파일
+logs/
+*.log
+
+# IDE 설정
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 운영체제 파일
+.DS_Store
+Thumbs.db
+
+# 임시 파일
+temp/
+tmp/
+
+# 개발 환경
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# 빌드 파일
+build/
+dist/
+*.egg-info/

@@ -4,6 +4,9 @@ from typing import List, Dict, Optional
 from bson import ObjectId
 import threading
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 # MongoDB 연결 설정
 MONGO_URL = "mongodb://root:example@192.168.0.199:27017/?authSource=admin"
@@ -43,16 +46,49 @@ class DatabaseHandler:
         else:
             return data
 
+    
     def save_routine(self, routine_data: dict):
+        """루틴 저장 with 상세한 오류 처리"""
         try:
+            # 필수 필드 검증
+            required_fields = ['user_id', 'day', 'title', 'exercises']
+            for field in required_fields:
+                if field not in routine_data:
+                    print(f"❌ 필수 필드 누락: {field}")
+                    return None
+            
+            # user_id 타입 검증 및 변환
+            if isinstance(routine_data['user_id'], str):
+                try:
+                    routine_data['user_id'] = int(routine_data['user_id'])
+                except ValueError:
+                    print(f"❌ user_id 변환 실패: {routine_data['user_id']}")
+                    return None
+            
             # created_at이 없으면 추가
             if 'created_at' not in routine_data:
                 routine_data['created_at'] = datetime.now(timezone.utc)
+            
+            # 데이터 유효성 추가 검증
+            if not isinstance(routine_data['exercises'], list) or len(routine_data['exercises']) == 0:
+                print("❌ exercises 필드가 비어있거나 잘못된 형식")
+                return None
                 
+            print(f"✅ 루틴 저장 시도: user_id={routine_data['user_id']}, day={routine_data['day']}")
+            
             result = self.collection.insert_one(routine_data)
-            return str(result.inserted_id)
+            
+            if result.acknowledged:
+                print(f"✅ 루틴 저장 성공: {result.inserted_id}")
+                return str(result.inserted_id)
+            else:
+                print("❌ MongoDB 저장 실패: acknowledged=False")
+                return None
+                
         except Exception as e:
-            print(f"MongoDB 저장 실패: {e}")
+            print(f"❌ MongoDB 저장 중 예외 발생: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def get_routines_by_day(self, user_id: int, day: int):
@@ -233,7 +269,7 @@ class DatabaseHandler:
             return False
 
     def restore_user_routines_from_temp(self, user_id: str, backup_type: str = None) -> bool:
-        """임시 컬렉션에서 사용자 루틴 복원 (백업 타입별 복원)"""
+        """임시 컬렉션에서 사용자 루틴 완전 복원 - 데이터 형식 보장"""
         try:
             user_id_int = int(user_id) if isinstance(user_id, str) else user_id
             
@@ -253,25 +289,41 @@ class DatabaseHandler:
             
             original_routines = backup["original_routines"]
             
-            # 현재 루틴 삭제
+            # 🔥 현재 루틴 완전 삭제
             self.delete_user_routines(user_id)
             
-            # 원래 루틴 복원
+            # 🔥 원래 루틴 완전 복원 (데이터 형식 그대로 유지)
+            restored_count = 0
             for routine in original_routines:
                 # _id 제거 (새로 생성되도록)
                 if '_id' in routine:
                     del routine['_id']
+                
+                # user_id 보장
                 routine['user_id'] = user_id_int
-                self.save_routine(routine)
+                
+                # 원본 데이터 형식 그대로 저장
+                saved_id = self.save_routine(routine)
+                if saved_id:
+                    restored_count += 1
             
-            # 백업 상태를 'restored'로 변경
-            self.temp_routines_collection.update_one(
-                {"_id": backup["_id"]},
-                {"$set": {"status": "restored", "restored_time": datetime.now(timezone.utc)}}
-            )
-            
-            print(f"사용자 {user_id} 루틴 복원 완료 (타입: {backup.get('backup_type', 'general')})")
-            return True
+            if restored_count > 0:
+                # 백업 상태를 'restored'로 변경
+                self.temp_routines_collection.update_one(
+                    {"_id": backup["_id"]},
+                    {"$set": {"status": "restored", "restored_time": datetime.now(timezone.utc)}}
+                )
+                
+                print(f"사용자 {user_id} 루틴 완전 복원 완료: {restored_count}일차 (타입: {backup.get('backup_type', 'general')})")
+                
+                # 🔥 복원 완료 후 temp에서 삭제
+                self.temp_routines_collection.delete_one({"_id": backup["_id"]})
+                print(f"사용자 {user_id}의 백업 루틴을 temp에서 삭제했습니다.")
+                
+                return True
+            else:
+                print(f"사용자 {user_id} 루틴 복원 실패: 저장된 루틴 없음")
+                return False
             
         except Exception as e:
             print(f"루틴 복원 실패: {e}")
@@ -313,8 +365,8 @@ class DatabaseHandler:
             print(f"백업 정보 조회 실패: {e}")
             return None
 
-    def schedule_routine_restoration(self, user_id: str, hours_delay: int):
-        """루틴 자동 복원 스케줄링"""
+    def schedule_routine_restoration(self, user_id: str, hours_delay: float):
+        """루틴 자동 복원 스케줄링 - 분 단위 지원"""
         try:
             user_id_int = int(user_id) if isinstance(user_id, str) else user_id
             restoration_time = datetime.now(timezone.utc) + timedelta(hours=hours_delay)
@@ -322,13 +374,19 @@ class DatabaseHandler:
             # 스케줄에 추가
             self.restoration_schedule[user_id_int] = restoration_time
             
-            print(f"사용자 {user_id} 루틴 복원이 {restoration_time}에 스케줄되었습니다.")
+            # 분 단위로 표시
+            if hours_delay < 1:
+                time_display = f"{int(hours_delay * 60)}분"
+            else:
+                time_display = f"{hours_delay}시간"
+            
+            print(f"사용자 {user_id} 루틴 복원이 {time_display} 후 ({restoration_time})에 스케줄되었습니다.")
             
         except Exception as e:
             print(f"복원 스케줄링 실패: {e}")
 
     def _start_restoration_thread(self):
-        """백그라운드 복원 스레드 시작"""
+        """백그라운드 복원 스레드 시작 - 정확한 시간 체크"""
         def restoration_worker():
             while True:
                 try:
@@ -343,7 +401,8 @@ class DatabaseHandler:
                     # 복원 실행
                     for user_id in users_to_restore:
                         try:
-                            success = self.restore_user_routines_from_temp(str(user_id))
+                            # 🔥 원본 루틴을 temp에서 routines로 완전 복원
+                            success = self.restore_user_routines_from_temp(str(user_id), backup_type="daily_modification")
                             if success:
                                 print(f"자동 복원 완료: 사용자 {user_id}")
                             else:
@@ -354,12 +413,12 @@ class DatabaseHandler:
                             # 스케줄에서 제거
                             del self.restoration_schedule[user_id]
                     
-                    # 1분마다 체크
-                    time.sleep(60)
+                    # 🔥 10초마다 체크 (더 정확한 타이밍)
+                    time.sleep(10)
                     
                 except Exception as e:
                     print(f"복원 스레드 오류: {e}")
-                    time.sleep(60)
+                    time.sleep(10)
         
         # 데몬 스레드로 시작
         restoration_thread = threading.Thread(target=restoration_worker, daemon=True)
@@ -447,3 +506,44 @@ class DatabaseHandler:
                 "scheduled_restorations": 0,
                 "error": str(e)
             }
+            
+    def has_backup_routine(self, user_id: str, backup_type: str = None) -> bool:
+        """사용자가 백업된 루틴을 가지고 있는지 확인 (기존 메서드 강화)"""
+        try:
+            user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+            
+            query = {"user_id": user_id_int, "status": "active"}
+            if backup_type:
+                query["backup_type"] = backup_type
+            
+            count = self.temp_routines_collection.count_documents(query)
+            
+            if count > 0:
+                logger.info(f"🔍 사용자 {user_id}의 활성 백업 루틴 {count}개 발견")
+            
+            return count > 0
+        except Exception as e:
+            logger.error(f"백업 루틴 존재 확인 실패: {e}")
+            return False
+
+    def get_backup_info(self, user_id: str, backup_type: str = None) -> Optional[Dict]:
+        """백업 정보 조회 (기존 메서드 강화)"""
+        try:
+            user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+            
+            query = {"user_id": user_id_int, "status": "active"}
+            if backup_type:
+                query["backup_type"] = backup_type
+            
+            backup = self.temp_routines_collection.find_one(
+                query,
+                sort=[("backup_time", -1)]  # 최신 백업 우선
+            )
+            
+            if backup:
+                logger.info(f"📋 사용자 {user_id}의 백업 정보 조회 성공: 타입={backup.get('backup_type')}, 루틴수={len(backup.get('original_routines', []))}")
+            
+            return self._convert_objectid(backup) if backup else None
+        except Exception as e:
+            logger.error(f"백업 정보 조회 실패: {e}")
+            return None
